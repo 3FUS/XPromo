@@ -1,0 +1,43 @@
+promotion_mapping:
+  DEAL:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+    generosity_cap: 999999999
+    iteration_cap: -1
+    exclude_discounted_flag: 1
+  DEAL_ITEM_1:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+  DEAL_ITEM_2:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+  DEAL_ITEM_TEST:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+    item_condition_seq: 1
+    value1: "TRUE"
+  PRC_DEAL_LOC:
+    organization_id: 1
+  PRC_DEAL_TRIG:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+  DSC_COUPON_XREF:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+    coupon_type: "INPUT_COUPON"
+    serialized_flag: 0
+    effective_date: "2019-01-01"
+
+segment_mapping:
+  ITM_ITEM_DEAL_PROP:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+    type: "STRING"
+    string_value: "TRUE"

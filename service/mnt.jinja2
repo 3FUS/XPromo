@@ -1,0 +1,40 @@
+{# DEAL 插入语句模板 #}
+INSERT|DEAL|
+{{ promotion_id }}|                     {# 01: 促销ID #}
+{{ line.description }}|                  {# 02: 描述 #}
+|                                      {# 03: 预留字段 #}
+{{ line.effective_date }}|              {# 04: 生效日期 #}
+{{ line.end_date }}|                    {# 05: 结束日期 #}
+|                                      {# 06: 预留字段 #}
+|                                      {# 07: 预留字段 #}
+999999999|                              {# 08: 默认最大数量 #}
+-1|                                     {# 09: 固定值 #}
+1|                                      {# 10: 是否启用 #}
+|                                      {# 11: 预留字段 #}
+999999999|                              {# 12: 最大触发次数 #}
+{{ line.trwide_action }}|               {# 13: 全局动作类型 #}
+{{ line.trwide_amount }}|               {# 14: 全局动作数值 #}
+||||||1|0||0|0|0|1|1\n                  {# 15~27: 固定字段组合 #}
+
+{# DEAL_ITEM 插入语句模板 #}
+INSERT|DEAL_ITEM|
+{{ promotion_id }}|                     {# 01: 促销ID #}
+1|                                      {# 02: 条件类型 #}
+1|                                      {# 03: 应用范围 #}
+|                                      {# 04: 预留字段 #}
+|                                      {# 05: 预留字段 #}
+{{ line.min_item_total }}|              {# 06: 最小商品数量 #}
+|||||||                                 {# 07~13: 预留字段 #}
+1|0||0|0|0|1|1\n                        {# 14~20: 固定字段组合 #}
+
+{# DEAL_ITEM_TEST 插入语句模板 #}
+INSERT|DEAL_ITEM_TEST|
+{{ promotion_id }}|                     {# 01: 促销ID #}
+{{ line.item_ordinal }}|                {# 02: 条件序号 #}
+ITEM_PROPERTY|                          {# 03: 属性类型 #}
+{{ line.match_rule }}|                  {# 04: 匹配规则 #}
+{{ line.item_field }}|                  {# 05: 字段名称 #}
+|                                      {# 06: 预留字段 #}
+1|                                      {# 07: 固定值 #}
+{{ line.item_condition_group }}        {# 08: 条件组编号 #}
+ \n

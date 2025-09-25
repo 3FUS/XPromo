@@ -1,0 +1,76 @@
+item:
+  - condition_name: "DEPARTMENT"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["SELECT DISTINCT hierarchy_id,description from itm_merch_hierarchy where LEVEL_CODE='DEPARTMENT'"]
+  - condition_name: "SUBDEPARTMENT"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["SELECT DISTINCT hierarchy_id,description from itm_merch_hierarchy where LEVEL_CODE='SUBDEPARTMENT'"]
+  - condition_name: "PRICE"
+    condition_type: ['=', '<>', '>', '<', 'between']
+    value_type: "number"
+  - condition_name: "STYLE"
+    condition_type: ['=', 'include']
+    value_type: "string"
+  - condition_name: "Item ID"
+    condition_type: ['=', 'include']
+    value_type: "string"
+location:
+  - condition_name: "City"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT City,City from loc_rtl_loc where City is not NULL" ]
+  - condition_name: "Country"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT country,country from loc_rtl_loc where country is not NULL" ]
+  - condition_name: "Location ID"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT rtl_loc_id,rtl_loc_id from loc_rtl_loc" ]
+customer:
+  - condition_name: "Gender"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT Gender,Gender FROM crm_party where Gender is not NULL" ]
+  - condition_name: "Birthday"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "Date"
+  - condition_name: "VIP TYPE"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT party_typcode,party_typcode from crm_party where party_typcode is not NULL" ]
+  - condition_name: "Telephone"
+    condition_type: [ '=','include' ]
+    value_type: "number"
+  - condition_name: "SignUp Location"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT rtl_loc_id,rtl_loc_id from loc_rtl_loc" ]
+
+condition_name_mapping:
+  item:
+    "Item ID": "item_id"
+    "STYLE": "parent_item_id"
+    "DEPARTMENT": "merch_level_1"
+    "SUBDEPARTMENT": "merch_level_2"
+    "PRICE": "list_price"
+  location:
+    "City": "city"
+    "Country": "country"
+    "Location ID": "rtl_loc_id"
+  customer:
+    "Gender": "gender"
+    "VIP TYPE": "party_typcode"
+    "Telephone": "telephone_number"
+    "SignUp Location": "sign_up_rtl_loc_id"
+    "Birthday": "birth_date"
+
+field_types:
+  item:
+    list_price: float
+  location:
+    "rtl_loc_id": int
+  customer:
+    "birth_date": datatime

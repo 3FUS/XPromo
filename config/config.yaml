@@ -1,0 +1,241 @@
+promotion_class:
+  - code: "Discount"
+    description: "Discount applied at line item or transaction level"
+    class_id: 1
+  - code: "Fixed Quantity/Price"
+    description: "A certain discount or special price associated with a certain set of items, when purchased together"
+    class_id: 2
+  - code: "Gift with Purchase"
+    description: "A gift is provided to the customer when they purchase certain, defined item(s)"
+    class_id: 3
+  - code: "Buy X Get Y"
+    description: "The purchase of a certain, defined item allows the customer to receive a different item at no cost ora discount"
+    class_id: 4
+
+promotion_template:
+  - subclass_id: 1
+    code: "Spend X$ or more, get Y$ off"
+    description: "Discount amount is applied to the subtotal of a transaction"
+    class_id: 1
+  - subclass_id: 2
+    code: "Spend X$ or more, get Y% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 1
+  - subclass_id: 3
+    code: "Purchase X item(s) or more, get Y% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 1
+  - subclass_id: 4
+    code: "Purchase every X item(s), get Y% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 1
+  - subclass_id: 5
+    code: "Purchase X item(s) or more, get Y$ off"
+    description: "Discount amount is applied to the subtotal of a transaction"
+    class_id: 1
+  - subclass_id: 6
+    code: "Purchase every X item(s), get Y$ off"
+    description: "Discount amount is applied to the subtotal of a transaction"
+    class_id: 1
+  - subclass_id: 1
+    code: "Purchase every X item(s) fixed price Y$"
+    description: "Discount percentage is applied to the line items"
+    class_id: 2
+  - subclass_id: 2
+    code: "Purchase A and get every X item(s) fixed price Y$"
+    description: "Discount percentage is applied to the line items"
+    class_id: 2
+  - subclass_id: 3
+    code: "Purchase X$ or more, fixed price Y$"
+    description: "Discount percentage is applied to the line items"
+    class_id: 2
+  - subclass_id: 4
+    code: "Purchase X item(s), fixed price Y$"
+    description: "Discount percentage is applied to the line items"
+    class_id: 2
+  - subclass_id: 1
+    code: "Purchase every X item(s) get Y item(s) free"
+    description: "Free items is applied to the line items"
+    class_id: 3
+  - subclass_id: 2
+    code: "Purchase X item(s) or more, get Y item(s) free"
+    description: "Free items is applied to the line items"
+    class_id: 3
+  - subclass_id: 3
+    code: "Purchase X$ or more, get Y item(s) free"
+    description: "Free items is applied to the line items"
+    class_id: 3
+  - subclass_id: 4
+    code: "Purchase X item(s) and Y item(s), get Z item(s) free"
+    description: "Free items is applied to the line items"
+    class_id: 3
+  - subclass_id: 1
+    code: "Purchase every X item(s) get Y% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 4
+  - subclass_id: 2
+    code: "Purchase X item(s) or more, get Y% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 4
+  - subclass_id: 3
+    code: "Purchase X item(s) and Y item(s), get Z% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 4
+
+promotion_template_default_p:
+  1: { 0: { 'result':[{'discount_type': 'PERCENT_OFF'}],'item_set':1},
+       1: { 'header':{'iteration_cap':1},
+            'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
+            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
+            'item_set':1},
+       2: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
+            'item_set':1},
+       3: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
+            'item_set':1},
+       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
+            'item_set':1},
+       5: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
+            'item_set':1},
+       6: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
+            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
+            'item_set':1}
+     }
+  2: { 0: { 'result':[{'discount_type': 'NEW_PRICE'}] ,'item_set':1},
+       1: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
+            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
+            'item_set':1},
+       2: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
+            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
+            'item_set':2},
+       3: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
+            'item_set':2},
+       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
+            'item_set':2}
+     }
+  3: { 0: { 'result':[{'discount_type':'PERCENT_OFF'}],'item_set':2},
+       1: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
+            'item_set':2},
+       2: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
+            'item_set':2},
+       3: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
+            'item_set':2},
+       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
+            'item_set':2}
+     }
+  4: { 0: { 'result':[{'discount_type':'PERCENT_OFF'}],'item_set':2},
+       1: { 'condition': [ { 'condition_type': 'Quantity','threshold_style': 'Every Quantity' }],
+            'result': [ { 'apply_type': 'Line','discount_type': 'PERCENT_OFF' } ],'item_set': 2 },
+       2: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2},
+       3: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2}
+     }
+
+
+promotion_condition:
+  - condition_name : "Condition Type"
+    value_type: "LIST"
+    condition_value: [ "Quantity", "Amount"]
+  - condition_name: "Threshold Style"
+    value_type: "LIST"
+    condition_value:
+      Quantity: [">=","Between","Every Quantity"]
+      Amount : [ ">="]
+  - condition_name: "MinQty"
+    value_type: "number"
+  - condition_name: "MaxQty"
+    value_type: "number"
+  - condition_name: "MinItemTotal"
+    value_type: "number"
+
+promotion_result:
+  - result_name: "Discount Overlap"
+    value_type: "CheckBox"
+  - result_name: "Apply Type"
+    value_type: "LIST"
+    condition_value: [ "Transaction", "Line" ]
+  - result_name: "Action Qty"
+    value_type: "number"
+  - result_name: "Discount Type"
+    value_type: "LIST"
+    condition_value: [ "PERCENT_OFF", "CURRENCY_OFF" ,"NEW_PRICE"]
+  - result_name: "Discount Value"
+    value_type: "number"
+
+promotion_level:
+  - level_code: ""
+    level_value: 0
+  - level_code: "Level_1"
+    level_value: 1
+  - level_code: "Level_2"
+    level_value: 2
+  - level_code: "Level_3"
+    level_value: 3
+
+
+promotion_type:
+  - type_code: "Product"
+    type_value: "Product"
+  - type_code: "Coupon"
+    type_value: "Coupon"
+
+
+promotion_group:
+  - group_code: 0
+    group_value: "Overlay"
+  - group_code: 1
+    group_value: "Exclusive"
+
+item_column:
+  'item_id': { 'width': 120, 'name': 'Item Id' }
+  'item_name': { 'width': 180, 'name': 'Item Name' }
+  'item_department': { 'width': 100, 'name': 'Department'}
+  'item_price': { 'width': 100, 'name': 'Price' }
+
+location_column:
+  'rtl_loc_id': { 'width': 80, 'name': 'Location Id' }
+  'store_name': { 'width': 120, 'name': 'Store Name' }
+  'city': { 'width': 100, 'name': 'City' }
+
+customer_column:
+  'party_id': { 'width': 80, 'name': 'Customer Id' }
+  'first_name': { 'width': 120, 'name': 'Customer Name' }
+  'cust_phone': { 'width': 120, 'name': 'Phone' }
+
+
+SECRET_KEY:
+  "65ec98c51c998e1f4bbdb90b2abf16e63d124087df4f93898da50ebd708f6f1a"
+
+
+Export_Type: "WORKER" # MNT, WORKER
+
+MNT_PATH: './mnt'
+
+PROMOTION_TABLES:
+  PRC_DEAL_TRIG: "PRC_DEAL_TRIGGER"
+  PRC_DEAL_FIELD_TEST: "DEAL_ITEM_TEST"
+  PRC_DEAL_ITEM: "DEAL_ITEM"
+  PRC_DEAL_WEEK: ""
+  PRC_DEAL: "DEAL"
+
+Data_Mapping:
+  "ITM_ITEM_DEAL_PROP": {
+    "item_id": "item_id",
+    "item_name": "item_name",
+    "item_description": "item_description",
+    "item_department": "item_department",
+    "item_class": "item_class",
+    "item_subclass": "item_subclass",
+    "item_season": "item_season",
+    "item_last_3_month_sales_amt": "item_last_3_month_sales_amt",
+  }
