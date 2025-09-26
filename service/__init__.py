@@ -7,9 +7,28 @@ from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+import os
+import sys
 
 def get_engine():
-    from config.database_config import DATABASES, DB_TYPE
+    # from config.database_config import DATABASES, DB_TYPE
+
+    if getattr(sys, 'frozen', False):
+        # 如果是打包后的exe，从exe所在目录加载配置
+        config_path = os.path.join(os.path.dirname(sys.executable), 'config', 'database_config.py')
+    else:
+        # 如果是脚本运行，从当前目录加载配置
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'database_config.py')
+
+    # 动态加载配置文件
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("database_config", config_path)
+    database_config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(database_config)
+
+    DATABASES = database_config.DATABASES
+    DB_TYPE = database_config.DB_TYPE
+
     db_config = DATABASES.get(DB_TYPE)
 
     if not db_config:

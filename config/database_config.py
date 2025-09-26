@@ -22,4 +22,4 @@ DATABASES = {
     }
 }
 
-DB_TYPE = 'mysql'
+DB_TYPE = 'sqlserver'
