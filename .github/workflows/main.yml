@@ -32,7 +32,7 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          python -m PyInstaller --onefile --hidden-import=aiomysql --name XPromo main.py
+          python -m PyInstaller --onefile --hidden-import=pyodbc --name XPromo main.py
 
       - name: Prepare config files
         run: |
