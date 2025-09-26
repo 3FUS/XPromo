@@ -32,8 +32,21 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          python -m PyInstaller --onefile --hidden-import=aiomysql --name RetailHub main.py
+          python -m PyInstaller --onefile --hidden-import=aiomysql --name XPromo main.py
+
+      - name: Prepare config files
+        run: |
+          # 创建配置文件目录
+          mkdir dist\config
           
+          # 复制配置文件到安装包目录
+          copy config\*.yaml dist\config\
+          copy config\*.py dist\config\
+          
+          # 创建配置文件模板目录（用于安装时选择是否覆盖）
+          mkdir dist\config_templates
+          copy config\*.yaml dist\config_templates\
+          copy config\*.py dist\config_templates\
 
       - name: Debug information
         run: |    
@@ -44,30 +57,92 @@ jobs:
 
       - name: Create installer with NSIS
         run: |
-          if (!(Test-Path "dist\RetailHub.exe")) {
-            echo "Error: dist\RetailHub.exe not found, cannot create installer"
+          if (!(Test-Path "dist\XPromo.exe")) {
+            echo "Error: dist\XPromo.exe not found, cannot create installer"
             exit 1
           }
+          
           # 创建安装脚本
-          echo 'Name "RetailHub"' > installer.nsi
-          echo 'OutFile "dist\RetailHub-Installer.exe"' >> installer.nsi
-          echo 'InstallDir $PROGRAMFILES\RetailHub' >> installer.nsi
-          echo 'Section' >> installer.nsi
+          echo '!include "MUI2.nsh"' > installer.nsi
+          echo '' >> installer.nsi
+          echo 'Name "XPromo"' >> installer.nsi
+          echo 'OutFile "dist\XPromo-Installer.exe"' >> installer.nsi
+          echo 'InstallDir $PROGRAMFILES\XPromo' >> installer.nsi
+          echo 'RequestExecutionLevel admin' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 定义安装页面
+          echo '!define MUI_ABORTWARNING' >> installer.nsi
+          echo '!insertmacro MUI_PAGE_WELCOME' >> installer.nsi
+          echo '!insertmacro MUI_PAGE_DIRECTORY' >> installer.nsi
+          echo '!insertmacro MUI_PAGE_INSTFILES' >> installer.nsi
+          echo '!insertmacro MUI_PAGE_FINISH' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 定义卸载页面
+          echo '!insertmacro MUI_UNPAGE_CONFIRM' >> installer.nsi
+          echo '!insertmacro MUI_UNPAGE_INSTFILES' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 语言设置
+          echo '!insertmacro MUI_LANGUAGE "English"' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 安装部分
+          echo 'Section "XPromo"' >> installer.nsi
+          echo '  SectionIn RO' >> installer.nsi
           echo '  SetOutPath $INSTDIR' >> installer.nsi
-          echo '  File "dist\RetailHub.exe"' >> installer.nsi
-          echo '  WriteUninstaller "$INSTDIR\uninstall.exe"' >> installer.nsi
+          echo '  File "dist\XPromo.exe"' >> installer.nsi
+          echo '' >> installer.nsi
+          echo '  SetOutPath $INSTDIR\config' >> installer.nsi
+          echo '  File "dist\config\*.*"' >> installer.nsi
           echo 'SectionEnd' >> installer.nsi
-          echo 'Section "Uninstall"' >> installer.nsi
-          echo '  Delete "$INSTDIR\RetailHub.exe"' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 配置文件部分（可选安装）
+          echo 'Section "Config Files (Overwrite)"' >> installer.nsi
+          echo '  SetOutPath $INSTDIR\config' >> installer.nsi
+          echo '  File "dist\config_templates\*.*"' >> installer.nsi
+          echo 'SectionEnd' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 创建开始菜单快捷方式
+          echo 'Section "Start Menu Shortcuts"' >> installer.nsi
+          echo '  CreateDirectory "$SMPROGRAMS\XPromo"' >> installer.nsi
+          echo '  CreateShortCut "$SMPROGRAMS\XPromo\XPromo.lnk" "$INSTDIR\XPromo.exe"' >> installer.nsi
+          echo '  CreateShortCut "$SMPROGRAMS\XPromo\Uninstall.lnk" "$INSTDIR\uninstall.exe"' >> installer.nsi
+          echo 'SectionEnd' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 注册表信息
+          echo 'Section -Post' >> installer.nsi
+          echo '  WriteUninstaller "$INSTDIR\uninstall.exe"' >> installer.nsi
+          echo '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\XPromo" "DisplayName" "XPromo"' >> installer.nsi
+          echo '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\XPromo" "UninstallString" "$INSTDIR\uninstall.exe"' >> installer.nsi
+          echo '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\XPromo" "DisplayIcon" "$INSTDIR\XPromo.exe"' >> installer.nsi
+          echo '  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\XPromo" "Publisher" "XPromo"' >> installer.nsi
+          echo 'SectionEnd' >> installer.nsi
+          echo '' >> installer.nsi
+          
+          # 卸载部分
+          echo 'Section Uninstall' >> installer.nsi
           echo '  Delete "$INSTDIR\uninstall.exe"' >> installer.nsi
+          echo '  Delete "$INSTDIR\XPromo.exe"' >> installer.nsi
+          echo '  Delete "$INSTDIR\config\*.*"' >> installer.nsi
+          echo '  RMDir "$INSTDIR\config"' >> installer.nsi
           echo '  RMDir "$INSTDIR"' >> installer.nsi
+          echo '' >> installer.nsi
+          echo '  Delete "$SMPROGRAMS\XPromo\*.*"' >> installer.nsi
+          echo '  RMDir "$SMPROGRAMS\XPromo"' >> installer.nsi
+          echo '' >> installer.nsi
+          echo '  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\XPromo"' >> installer.nsi
           echo 'SectionEnd' >> installer.nsi
           
           # 显示当前目录和文件信息用于调试
           echo "Current working directory:"
           pwd
-          echo "Full path to RetailHub.exe:"
-          $exePath = Resolve-Path "dist\RetailHub.exe"
+          echo "Full path to XPromo.exe:"
+          $exePath = Resolve-Path "dist\XPromo.exe"
           echo $exePath
           
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
@@ -75,5 +150,5 @@ jobs:
       - name: Archive installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RetailHub-installer
-          path: dist/RetailHub-Installer.exe
+          name: XPromo-installer
+          path: dist/XPromo-Installer.exe
