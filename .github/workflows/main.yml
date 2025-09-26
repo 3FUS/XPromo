@@ -20,6 +20,15 @@ jobs:
         with:
           python-version: '3.12'
 
+
+      - name: Install SQL Server ODBC Driver
+        run: |          # 下载并安装 Microsoft ODBC Driver 17 for SQL Server
+          curl -L https://download.microsoft.com/download/E/6/B/E6BFDC7A-5BCD-4C50-9E2D-E8C98F6E0063/msodbcsql17.msi -o msodbcsql17.msi
+          msiexec /i msodbcsql17.msi /quiet /passive /norestart IACCEPTMSODBCSQLLICENSETERMS=YES
+
+          # 验证驱动程序安装
+          powershell -Command "Get-OdbcDriver | Where-Object {$_.Name -like '*SQL Server*'}"
+
       - name: Install dependencies
         run: |    
           pip install --upgrade pip
