@@ -32,6 +32,13 @@ jobs:
             exit 1
           }
 
+          # 获取文件大小验证下载
+          $fileSize = (Get-Item "msodbcsql17.msi").Length
+          if ($fileSize -lt 1000000) {
+            echo "Error: Downloaded file size is too small: $fileSize bytes"
+            exit 1
+          }
+
           # 安装ODBC驱动
           msiexec /i msodbcsql17.msi /quiet /passive /norestart IACCEPTMSODBCSQLLICENSETERMS=YES
 
@@ -42,8 +49,7 @@ jobs:
           }
 
           # 验证驱动程序安装（修复PowerShell语法）
-          powershell -Command "Get-OdbcDriver | Where-Object { $_.Name -like '*SQL Server*' }"
-      
+          powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' }"
 
       - name: Install dependencies
         run: |    
