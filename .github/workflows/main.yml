@@ -22,10 +22,12 @@ jobs:
 
 
       - name: Install SQL Server ODBC Driver
-        run: |          # 下载并安装 Microsoft ODBC Driver 17 for SQL Server
-          curl -L https://download.microsoft.com/download/E/6/B/E6BFDC7A-5BCD-4C50-9E2D-E8C98F6E0063/msodbcsql17.msi -o msodbcsql17.msi
+        run: |
+          # 使用Microsoft提供的脚本安装
+          powershell -Command "Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2209524' -OutFile 'msodbcsql17.msi'"
           msiexec /i msodbcsql17.msi /quiet /passive /norestart IACCEPTMSODBCSQLLICENSETERMS=YES
-
+          powershell -Command "Get-OdbcDriver | Where-Object {$_.Name -like '*SQL Server*'}"
+          
           # 验证驱动程序安装
           powershell -Command "Get-OdbcDriver | Where-Object {$_.Name -like '*SQL Server*'}"
 
