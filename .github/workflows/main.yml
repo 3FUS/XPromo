@@ -23,9 +23,13 @@ jobs:
 
       - name: Install SQL Server ODBC Driver
         run: |
-          # 使用Microsoft提供的脚本安装
-          powershell -Command "Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2209524' -OutFile 'msodbcsql17.msi'"
+          # 使用Chocolatey安装ODBC驱动（推荐方式）
+          choco install sql-server-odbcdriver -y
+          refreshenv
 
+          # 验证驱动程序安装
+          powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' }"
+          
           # 检查文件是否成功下载
           if (!(Test-Path "msodbcsql17.msi")) {
             echo "Error: Failed to download msodbcsql17.msi"
