@@ -21,39 +21,18 @@ jobs:
           python-version: '3.12'
 
 
-      - name: Install SQL Server ODBC Driver
+      - name: Verify SQL Server ODBC Driver
         run: |
-          # 使用Chocolatey安装ODBC驱动（推荐方式）
-          choco install sql-server-odbcdriver -y
-          refreshenv
-
-          # 验证驱动程序安装
-          powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' }"
-          
-          # 检查文件是否成功下载
-          if (!(Test-Path "msodbcsql17.msi")) {
-            echo "Error: Failed to download msodbcsql17.msi"
-            exit 1
+          # 直接验证驱动程序是否存在
+          $drivers = powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' }"
+          if ($drivers.Count -eq 0) {
+            echo "Installing SQL Server ODBC Driver..."
+            choco install sql-server-odbcdriver -y
+            refreshenv
           }
 
-          # 获取文件大小验证下载
-          $fileSize = (Get-Item "msodbcsql17.msi").Length
-          if ($fileSize -lt 1000000) {
-            echo "Error: Downloaded file size is too small: $fileSize bytes"
-            exit 1
-          }
-
-          # 安装ODBC驱动
-          msiexec /i msodbcsql17.msi /quiet /passive /norestart IACCEPTMSODBCSQLLICENSETERMS=YES
-
-          # 验证安装结果
-          if (!$?) {
-            echo "Error: Failed to install SQL Server ODBC Driver"
-            exit 1
-          }
-
-          # 验证驱动程序安装（修复PowerShell语法）
-          powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' }"
+          echo "Available SQL Server ODBC Drivers:"
+          powershell -Command "Get-OdbcDriver | Where-Object { `$_.Name -like '*SQL Server*' } | Format-Table Name, Platform"
 
       - name: Install dependencies
         run: |    
