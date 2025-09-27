@@ -25,11 +25,25 @@ jobs:
         run: |
           # 使用Microsoft提供的脚本安装
           powershell -Command "Invoke-WebRequest -Uri 'https://go.microsoft.com/fwlink/?linkid=2209524' -OutFile 'msodbcsql17.msi'"
+
+          # 检查文件是否成功下载
+          if (!(Test-Path "msodbcsql17.msi")) {
+            echo "Error: Failed to download msodbcsql17.msi"
+            exit 1
+          }
+
+          # 安装ODBC驱动
           msiexec /i msodbcsql17.msi /quiet /passive /norestart IACCEPTMSODBCSQLLICENSETERMS=YES
-          powershell -Command "Get-OdbcDriver | Where-Object {$_.Name -like '*SQL Server*'}"
-          
-          # 验证驱动程序安装
-          powershell -Command "Get-OdbcDriver | Where-Object {$_.Name -like '*SQL Server*'}"
+
+          # 验证安装结果
+          if (!$?) {
+            echo "Error: Failed to install SQL Server ODBC Driver"
+            exit 1
+          }
+
+          # 验证驱动程序安装（修复PowerShell语法）
+          powershell -Command "Get-OdbcDriver | Where-Object { $_.Name -like '*SQL Server*' }"
+      
 
       - name: Install dependencies
         run: |    
