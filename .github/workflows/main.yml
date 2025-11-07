@@ -171,8 +171,8 @@ jobs:
           
           # 卸载部分
           echo 'Section Uninstall' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe stop PromoXService" "" 1' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe remove PromoXService confirm" "" 1' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe stop PromoXService"' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe remove PromoXService confirm"' >> installer.nsi
           echo '  Delete "$INSTDIR\uninstall.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\PromoX.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\nssm.exe"' >> installer.nsi
