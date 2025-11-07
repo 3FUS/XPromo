@@ -53,6 +53,10 @@ promotion_template:
     code: "Purchase X item(s), fixed price Y$"
     description: "Discount percentage is applied to the line items"
     class_id: 2
+  - subclass_id: 5
+    code: "Purchase A + B + C items, fixed price Y$"
+    description: "Discount percentage is applied to the line items"
+    class_id: 2
   - subclass_id: 1
     code: "Purchase every X item(s) get Y item(s) free"
     description: "Free items is applied to the line items"
@@ -78,7 +82,12 @@ promotion_template:
     description: "Discount percentage is applied to the line items"
     class_id: 4
   - subclass_id: 3
-    code: "Purchase X item(s) and Y item(s), get Z% off"
+    code: "Purchase A item(s) and B item(s), get Z% off"
+    description: "Discount percentage is applied to the line items"
+    class_id: 4
+    #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
+  - subclass_id: 4
+    code: "Purchase A item(s) , B item(s) and C item(s), get Z% off"
     description: "Discount percentage is applied to the line items"
     class_id: 4
 
@@ -116,6 +125,10 @@ promotion_template_default_p:
             'item_set':2},
        4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
             'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
+            'item_set':2},
+      #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
+       5: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
             'item_set':2}
      }
   3: { 0: { 'result':[{'discount_type':'PERCENT_OFF'}],'item_set':2},
@@ -138,6 +151,9 @@ promotion_template_default_p:
        2: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='}],
             'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2},
        3: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
+            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2},
+        #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
+       4: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
             'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2}
      }
 
@@ -181,6 +197,8 @@ promotion_level:
     level_value: 2
   - level_code: "Level_3"
     level_value: 3
+  - level_code: "Level_4"
+    level_value: 4
 
 
 promotion_type:

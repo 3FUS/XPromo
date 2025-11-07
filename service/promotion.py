@@ -659,8 +659,8 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                 "deal_id": promotion_id,
                 "item_ordinal": 1,
                 "consumable": 1 if overlap == 0 else 0,
-                "qty_min": qty_min if condition_type == 'Quantity' else None,
-                "qty_max": qty_max if condition_type == 'Quantity' else None,
+                "qty_min": qty_min if qty_min else 1,
+                "qty_max": qty_max if qty_min else 9999,
                 "min_item_total": MinItemTotal if condition_type == 'Amount' else None,
                 "deal_action": discount_type if apply_type == 'Line' else None,
                 "action_arg": discount_value if apply_type == 'Line' else None,
@@ -675,8 +675,8 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                     "deal_id": promotion_id,
                     "item_ordinal": condition.set_id,
                     "consumable": 1 if overlap == 0 else 0,
-                    "qty_min": condition.MinQty if condition.condition_type == 'Quantity' else None,
-                    "qty_max": condition.MaxQty if condition.condition_type == 'Quantity' else None,
+                    "qty_min": condition.MinQty if condition.MinQty else 1,
+                    "qty_max": condition.MaxQty if condition.MinQty else 9999,
                     "min_item_total": condition.MinItemTotal if condition.condition_type == 'Amount' else None
                 }
                 PRC_DEAL_ITEM.append(DEAL_ITEM_1)

@@ -1,4 +1,4 @@
-from models.model import WorkerTask, PromotionNextSequence
+from models.model import WorkerTask, PromotionNextSequence,WorkerTerminal
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -52,17 +52,27 @@ async def create_worker_task(session: Session, locs: [], data_type: str, data_ke
                              data_seq: int = 0, status: str = 'N'):
     sessionId = generate_next_id(session, "WorkerSession")
     for location_id in locs:
-        worker_task = WorkerTask(
-            location_id=location_id,
-            terminal_id=1,
-            session_id=sessionId,
-            data_type=data_type,
-            data_key=data_key,
-            data_seq=data_seq,
-            status=status,
-            create_time=datetime.now(),
-        )
-        session.add(worker_task)
+
+        terminals = session.query(WorkerTerminal).filter(
+            WorkerTerminal.location_id == location_id,
+            WorkerTerminal.active == 1  # 只查询激活的终端
+        ).all()
+
+        if not terminals:
+            terminals = [type('Terminal', (), {'terminal_id': 1})()]
+
+        for terminal in terminals:
+            worker_task = WorkerTask(
+                location_id=location_id,
+                terminal_id=terminal.terminal_id,
+                session_id=sessionId,
+                data_type=data_type,
+                data_key=data_key,
+                data_seq=data_seq,
+                status=status,
+                create_time=datetime.now(),
+            )
+            session.add(worker_task)
     session.commit()
     session.refresh(worker_task)
     return sessionId

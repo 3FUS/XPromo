@@ -306,6 +306,16 @@ class WorkerTask(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+class WorkerTerminal(Base):
+    __tablename__ = 'worker_terminal'
+    location_id = Column(Integer, primary_key=True)
+    terminal_id = Column(Integer, primary_key=True)
+    active = Column(Integer, default=1, comment="激活状态")  # 1表示启用，0表示禁用
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
 
 class SysUser(Base):
     __tablename__ = 'sys_user'
