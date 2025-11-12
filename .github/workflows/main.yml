@@ -235,8 +235,8 @@ jobs:
           echo '' >> installer.nsi
           echo '  ; 安装Windows服务（使用用户指定的服务名称）' >> installer.nsi
           echo '  DetailPrint "正在安装Windows服务: $ServiceName"' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe install $ServiceName \"$INSTDIR\PromoX.exe\""' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe start $ServiceName"' >> installer.nsi
+          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe install $ServiceName \"$INSTDIR\PromoX.exe\""' >> installer.nsi
+          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe start $ServiceName"' >> installer.nsi
           echo 'SectionEnd' >> installer.nsi
           echo '' >> installer.nsi
           
@@ -254,8 +254,8 @@ jobs:
           # 卸载部分
           echo 'Section Uninstall' >> installer.nsi
           echo '  ; 停止并移除用户指定的服务名称' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe stop $ServiceName"' >> installer.nsi
-          echo '  ExecWait "$INSTDIR\nssm.exe remove $ServiceName confirm"' >> installer.nsi
+          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe stop $ServiceName"' >> installer.nsi
+          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe remove $ServiceName confirm"' >> installer.nsi
           echo '  Delete "$INSTDIR\uninstall.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\PromoX.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\nssm.exe"' >> installer.nsi
