@@ -5,13 +5,10 @@ from sqlalchemy.pool import QueuePool
 
 from utils.logger import app_logger
 
-
-
 import os
 import sys
 
 def get_engine():
-    # from config.database_config import DATABASES, DB_TYPE
 
     if getattr(sys, 'frozen', False):
         # 如果是打包后的exe，从exe所在目录加载配置
@@ -36,8 +33,8 @@ def get_engine():
         raise ValueError(f"Database configuration for {DB_TYPE} not found.")
 
     try:
-        pool_size = db_config.get("pool_size", 10)
-        max_overflow = db_config.get("max_overflow", 20)
+        pool_size = db_config.get("pool_size", 50)
+        max_overflow = db_config.get("max_overflow", 100)
         pool_recycle = db_config.get("pool_recycle", 3600)
 
         if DB_TYPE == 'oracle':
@@ -50,16 +47,6 @@ def get_engine():
                 query={"service_name": db_config["service_name"]}
             )
         elif DB_TYPE == 'sqlserver':
-            # db_url = URL.create(
-            #     drivername="mssql+pyodbc",
-            #     username=db_config["user"],
-            #     password=db_config["password"],
-            #     host=f"{db_config['host']}:{db_config['port']}",
-            #     database=db_config["database"],
-            #     query={
-            #         "driver": "ODBC Driver 17 for SQL Server"
-            #     }
-            # )
             engine = create_engine(
                 f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
                 f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
@@ -69,8 +56,6 @@ def get_engine():
                 max_overflow=max_overflow,
                 pool_recycle=pool_recycle,
                 pool_pre_ping=True)
-
-
 
             return engine
         elif DB_TYPE == 'mysql':
@@ -85,9 +70,6 @@ def get_engine():
         else:
             app_logger.error(f"Unsupported database type: {DB_TYPE}")
             raise ValueError(f"Unsupported database type: {DB_TYPE}")
-
-        # return create_engine(
-        #     f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}?driver=ODBC+Driver+17+for+SQL+Server')
 
         engine = create_engine(
             db_url,
