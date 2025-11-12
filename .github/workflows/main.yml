@@ -90,8 +90,6 @@ jobs:
           
           # 创建安装脚本
           echo '!include "MUI2.nsh"' > installer.nsi
-          echo '!include "nsDialogs.nsh"' >> installer.nsi
-          echo '!include "LogicLib.nsh"' >> installer.nsi
           echo '' >> installer.nsi
           echo 'Name "PromoX"' >> installer.nsi
           echo 'OutFile "dist\PromoX-Installer.exe"' >> installer.nsi
@@ -99,17 +97,10 @@ jobs:
           echo 'RequestExecutionLevel admin' >> installer.nsi
           echo '' >> installer.nsi
           
-          # 定义变量
-          echo 'Var ServiceName' >> installer.nsi
-          echo 'Var ConfigFilePath' >> installer.nsi
-          echo '' >> installer.nsi
-          
           # 定义安装页面
           echo '!define MUI_ABORTWARNING' >> installer.nsi
           echo '!insertmacro MUI_PAGE_WELCOME' >> installer.nsi
           echo '!insertmacro MUI_PAGE_DIRECTORY' >> installer.nsi
-          echo '' >> installer.nsi
-          
           echo '!insertmacro MUI_PAGE_INSTFILES' >> installer.nsi
           echo '!insertmacro MUI_PAGE_FINISH' >> installer.nsi
           echo '' >> installer.nsi
@@ -131,13 +122,6 @@ jobs:
           echo 'VIAddVersionKey "ProductVersion" "${{ env.VERSION }}"' >> installer.nsi
           echo 'VIAddVersionKey "LegalCopyright" "Copyright (C) 2025"' >> installer.nsi
           echo 'VIAddVersionKey "FileDescription" "PromoX Application"' >> installer.nsi
-          echo '' >> installer.nsi
-          
-          # 初始化函数
-          echo 'Function .onInit' >> installer.nsi
-          echo '  ; Initialize default values' >> installer.nsi
-          echo '  StrCpy $ServiceName "PromoXService"' >> installer.nsi
-          echo 'FunctionEnd' >> installer.nsi
           echo '' >> installer.nsi
           
           # 安装部分
@@ -169,10 +153,8 @@ jobs:
           
           # Windows 服务安装部分
           echo 'Section "Install as Windows Service"' >> installer.nsi
-          echo '  ; Install Windows service with default service name' >> installer.nsi
-          echo '  DetailPrint "Installing Windows service: $ServiceName"' >> installer.nsi
-          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe install $ServiceName \"$INSTDIR\PromoX.exe\""' >> installer.nsi
-          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe start $ServiceName"' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe install PromoXService $\"$INSTDIR\PromoX.exe$\""' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe start PromoXService"' >> installer.nsi
           echo 'SectionEnd' >> installer.nsi
           echo '' >> installer.nsi
           
@@ -189,9 +171,8 @@ jobs:
           
           # 卸载部分
           echo 'Section Uninstall' >> installer.nsi
-          echo '  ; Stop and remove service' >> installer.nsi
-          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe stop $ServiceName"' >> installer.nsi
-          echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe remove $ServiceName confirm"' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe stop PromoXService"' >> installer.nsi
+          echo '  ExecWait "$INSTDIR\nssm.exe remove PromoXService confirm"' >> installer.nsi
           echo '  Delete "$INSTDIR\uninstall.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\PromoX.exe"' >> installer.nsi
           echo '  Delete "$INSTDIR\nssm.exe"' >> installer.nsi

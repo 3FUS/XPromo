@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 
-def setup_logger(name: str, log_file: str, level=logging.DEBUG):
+def setup_logger(name: str, log_file: str, level=logging.INFO):
     """
     创建一个日志记录器，每天自动备份日志文件
 
@@ -33,7 +33,7 @@ def setup_logger(name: str, log_file: str, level=logging.DEBUG):
             log_file,
             when="midnight",
             interval=1,
-            backupCount=30,  # 保留30天的日志
+            backupCount=30,
             encoding='utf-8'
         )
         file_handler.setLevel(level)

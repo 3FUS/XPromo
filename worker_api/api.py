@@ -20,7 +20,6 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     :param secret_key: 约定的密钥
     :return: 是否通过验签
     """
-    app_logger.info("Starting signature verification")
 
     # 获取签名和时间戳
     signature = headers.get("x-signature")
@@ -41,9 +40,9 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     # 验证时间戳有效性（防止重放攻击，允许5分钟偏差）
     current_time = int(time.time())
     app_logger.debug(f"Current timestamp: {current_time}")
-    # if abs(current_time - request_time) > 300:  # 5分钟
-    #     app_logger.warning("Timestamp out of valid range")
-    #     return False
+    if abs(current_time - request_time) > 300:  # 5分钟
+        app_logger.warning("Timestamp out of valid range")
+        return False
 
     # 排除 signature 字段后排序参数 key 并拼接成字符串
     sorted_params = sorted((k.lower(), v) for k, v in headers.items()
@@ -51,17 +50,13 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
     app_logger.debug(f"Parameters string for signature: {param_str}")
 
-    # 使用 HMAC-SHA256 生成签名
     expected_sign = hmac.new(
         secret_key.encode("utf-8"),
         param_str.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
 
-    is_valid = hmac.compare_digest(signature, expected_sign)
-    app_logger.info(f"Signature verification {'passed' if is_valid else 'failed'}")
-
-    return is_valid
+    return hmac.compare_digest(signature, expected_sign)
 
 
 async def verify_header_signature(request: Request):
@@ -136,8 +131,8 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
 
         return task_data
     except Exception as e:
-        print(e)
-        return {"code": 500, "msg": f"error{e}"}
+        app_logger.error(f"Error in get_task_data: {str(e)}", exc_info=True)
+        return APIResponse(code=500, msg="Internal server error")
 
 
 @router.post("/worker_api/call_back", dependencies=[Depends(verify_header_signature)])

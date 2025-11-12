@@ -63,9 +63,7 @@ app = FastAPI(
     description="promotion_api"
 )
 
-
 from utils.logger import app_logger
-
 
 # # 创建后台调度器
 # def start_scheduler():
@@ -99,7 +97,6 @@ app.include_router(worker_api_router, prefix="/worker")
 app.include_router(user_api_router, prefix="/user_api")
 
 PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
-
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 720
@@ -257,7 +254,7 @@ def generate_item_mnt_file(segment_id, item_list,
                 for item_data in item_list:
                     for item in item_data['data']:
                         mnt_file.write(
-                            f"INSERT|ITEM_DEAL_PROPERTY|{item.get('item_id','')}|{item.get('itm_deal_property_code','')}||{item.get('begin_date','')}|{end_date}|STRING|TRUE|||*|*\n")
+                            f"INSERT|ITEM_DEAL_PROPERTY|{item.get('item_id', '')}|{item.get('itm_deal_property_code', '')}||{item.get('begin_date', '')}|{end_date}|STRING|TRUE|||*|*\n")
         return True
     except Exception as e:
         app_logger.error("Error writing MNT file: {}".format(repr(e)))
