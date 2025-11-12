@@ -101,23 +101,13 @@ jobs:
           
           # 定义变量
           echo 'Var ServiceName' >> installer.nsi
-          echo 'Var ServerPort' >> installer.nsi
           echo 'Var ConfigFilePath' >> installer.nsi
-          echo 'Var Dialog' >> installer.nsi
-          echo 'Var Label1' >> installer.nsi
-          echo 'Var Label2' >> installer.nsi
-          echo 'Var ServiceNameText' >> installer.nsi
-          echo 'Var ServerPortText' >> installer.nsi
           echo '' >> installer.nsi
           
           # 定义安装页面
           echo '!define MUI_ABORTWARNING' >> installer.nsi
           echo '!insertmacro MUI_PAGE_WELCOME' >> installer.nsi
           echo '!insertmacro MUI_PAGE_DIRECTORY' >> installer.nsi
-          echo '' >> installer.nsi
-          
-          # 添加自定义配置页面
-          echo 'Page custom ConfigPageShow ConfigPageLeave' >> installer.nsi
           echo '' >> installer.nsi
           
           echo '!insertmacro MUI_PAGE_INSTFILES' >> installer.nsi
@@ -145,55 +135,8 @@ jobs:
           
           # 初始化函数
           echo 'Function .onInit' >> installer.nsi
-          echo '  ; 初始化默认值' >> installer.nsi
+          echo '  ; Initialize default values' >> installer.nsi
           echo '  StrCpy $ServiceName "PromoXService"' >> installer.nsi
-          echo '  StrCpy $ServerPort "8000"' >> installer.nsi
-          echo 'FunctionEnd' >> installer.nsi
-          echo '' >> installer.nsi
-          
-          # 自定义配置页面函数
-          echo 'Function ConfigPageShow' >> installer.nsi
-          echo '  !insertmacro MUI_HEADER_TEXT "服务配置" "配置Windows服务名称和端口号"' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ; 创建窗口控件' >> installer.nsi
-          echo '  nsDialogs::Create 1018' >> installer.nsi
-          echo '  Pop $Dialog' >> installer.nsi
-          echo '  ${If} $Dialog == error' >> installer.nsi
-          echo '    Abort' >> installer.nsi
-          echo '  ${EndIf}' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ${NSD_CreateLabel} 0 0 100% 12u "请配置以下服务参数："' >> installer.nsi
-          echo '  Pop $Label1' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ${NSD_CreateLabel} 0 20 100% 12u "Windows服务名称："' >> installer.nsi
-          echo '  Pop $Label2' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ${NSD_CreateText} 0 35 100% 12u "$ServiceName"' >> installer.nsi
-          echo '  Pop $ServiceNameText' >> installer.nsi
-          echo '  ${NSD_SetFocus} $ServiceNameText' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ${NSD_CreateLabel} 0 55 100% 12u "服务端口号："' >> installer.nsi
-          echo '  Pop $Label1' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ${NSD_CreateText} 0 70 100% 12u "$ServerPort"' >> installer.nsi
-          echo '  Pop $ServerPortText' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  nsDialogs::Show' >> installer.nsi
-          echo 'FunctionEnd' >> installer.nsi
-          echo '' >> installer.nsi
-          
-          # 配置页面离开函数
-          echo 'Function ConfigPageLeave' >> installer.nsi
-          echo '  ; 获取用户输入的值' >> installer.nsi
-          echo '  ${NSD_GetText} $ServiceNameText $ServiceName' >> installer.nsi
-          echo '  ${NSD_GetText} $ServerPortText $ServerPort' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ; 验证端口号是否为数字' >> installer.nsi
-          echo '  StrCmp $ServerPort "" +2' >> installer.nsi
-          echo '  IntOp $0 $ServerPort + 0' >> installer.nsi
-          echo '  IfErrors 0 +3' >> installer.nsi
-          echo '    MessageBox MB_ICONEXCLAMATION|MB_OK "请输入有效的端口号！"' >> installer.nsi
-          echo '    Abort' >> installer.nsi
           echo 'FunctionEnd' >> installer.nsi
           echo '' >> installer.nsi
           
@@ -226,15 +169,8 @@ jobs:
           
           # Windows 服务安装部分
           echo 'Section "Install as Windows Service"' >> installer.nsi
-          echo '  ; 设置配置文件路径' >> installer.nsi
-          echo '  StrCpy $ConfigFilePath "$INSTDIR\config\config.yaml"' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ; 更新config.yaml中的SERVER_PORT值' >> installer.nsi
-          echo '  DetailPrint "正在更新配置文件中的端口号为: $ServerPort"' >> installer.nsi
-          echo '  nsExec::ExecToLog "\"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe\" -Command \"& {(Get-Content ''$ConfigFilePath'') -replace ''SERVER_PORT:.*'', ''SERVER_PORT: $ServerPort'' | Set-Content ''$ConfigFilePath''}\""' >> installer.nsi
-          echo '' >> installer.nsi
-          echo '  ; 安装Windows服务（使用用户指定的服务名称）' >> installer.nsi
-          echo '  DetailPrint "正在安装Windows服务: $ServiceName"' >> installer.nsi
+          echo '  ; Install Windows service with default service name' >> installer.nsi
+          echo '  DetailPrint "Installing Windows service: $ServiceName"' >> installer.nsi
           echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe install $ServiceName \"$INSTDIR\PromoX.exe\""' >> installer.nsi
           echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe start $ServiceName"' >> installer.nsi
           echo 'SectionEnd' >> installer.nsi
@@ -253,7 +189,7 @@ jobs:
           
           # 卸载部分
           echo 'Section Uninstall' >> installer.nsi
-          echo '  ; 停止并移除用户指定的服务名称' >> installer.nsi
+          echo '  ; Stop and remove service' >> installer.nsi
           echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe stop $ServiceName"' >> installer.nsi
           echo '  nsExec::ExecToLog "$INSTDIR\nssm.exe remove $ServiceName confirm"' >> installer.nsi
           echo '  Delete "$INSTDIR\uninstall.exe"' >> installer.nsi
