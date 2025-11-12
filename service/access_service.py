@@ -31,6 +31,35 @@ async def create_sys_user(session: Session, User):
     return new_user
 
 
+async def change_user_password(session: Session, user_code: str, old_password: str, new_password: str):
+    """
+    修改用户密码
+    :param session: 数据库会话
+    :param user_code: 用户代码
+    :param old_password: 旧密码
+    :param new_password: 新密码
+    :return: 是否修改成功
+    """
+    # 验证旧密码是否正确
+    if not await verify_password(session, user_code, old_password):
+        raise ValueError("原密码错误")
+
+    # 获取用户对象
+    user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
+    if not user:
+        raise ValueError("用户不存在")
+
+    # 更新密码
+    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+    user.user_password = hashed_password.decode('utf-8')
+    user.update_time = datetime.now()
+
+    session.commit()
+    session.refresh(user)
+
+    return True
+
+
 async def delete_user_by_code(session: Session, user_code: str):
     user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
     if user:
@@ -83,9 +112,9 @@ async def get_user_by_code(session: Session, user_code: str):
 async def update_sys_user(session: Session, user_code: str, User):
     updated_user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
     if updated_user:
-        if User.user_password:
-            hashed_password = bcrypt.hashpw(User.user_password.encode('utf-8'), bcrypt.gensalt())
-            updated_user.user_password = hashed_password.decode('utf-8')
+        # if User.user_password:
+        #     hashed_password = bcrypt.hashpw(User.user_password.encode('utf-8'), bcrypt.gensalt())
+        #     updated_user.user_password = hashed_password.decode('utf-8')
         updated_user.user_name = User.user_name
         updated_user.user_email = User.user_email
         updated_user.user_status = User.user_status

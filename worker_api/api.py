@@ -1,92 +1,87 @@
-from fastapi import APIRouter, HTTPException
-
+from fastapi import APIRouter, HTTPException, Depends, Request
 from service.promotion import process_promotion_data
 from service.segments_service import get_segments_item_detail, get_segments_by_phone, process_segment_data
 from worker_api.worker_schemas import WorkerCallBack
-
 from service.worker import get_worker_next_task, update_worker_task
+from service import get_db
+import hashlib
+import hmac
+import time
+
+from utils.logger import app_logger
 
 router = APIRouter()
 
-from fastapi import Depends, Request
-import hashlib
-
-from service import get_db
-#
-# import yaml
-#
-# mapping_file = open('./config/mapping.yaml', 'r', encoding='utf-8')
-# mapping_config = yaml.safe_load(mapping_file)
-# promotion_mapping = mapping_config.get("promotion_mapping", {})
-# segment_mapping = mapping_config.get("segment_mapping", {})
 
 def verify_signature(headers: dict, secret_key: str) -> bool:
     """
-    验签函数（示例使用简单拼接 + MD5 签名）
+    验签函数（使用 HMAC-SHA256 签名）
     :param headers: 请求头中的参数字典（不包含 signature 自身）
-    :param signature: 客户端传入的签名值
     :param secret_key: 约定的密钥
     :return: 是否通过验签
     """
-    # 排序参数 key 并拼接成字符串
-    sorted_params = sorted(headers.items())
-    param_str = "&".join([f"{k}={v}" for k, v in sorted_params]) + f"&secret_key={secret_key}"
+    app_logger.info("Starting signature verification")
 
-    # 使用 hashlib 或其他方式生成签名（这里以 md5 为例）
-    sign = hashlib.md5(param_str.encode("utf-8")).hexdigest()
+    # 获取签名和时间戳
+    signature = headers.get("x-signature")
+    timestamp = headers.get("x-timestamp")
 
-    # # 按首字母排序后进行MD5加密
-    # sign_params = {
-    #     "callerService": x_caller_service,
-    #     "contextPath": context_path,
-    #     "timestamp": x_caller_timestamp,
-    #     "v": version,
-    #     # "serviceSecret": config["serviceSecret"],
-    #     "requestPath": rest_path
-    # }
-    # sorted_params = sorted(sign_params.items())
-    # sign_string = config["serviceSecret"] + "".join([f"{k}{v}" for k, v in sorted_params]) + config["serviceSecret"]
-    # expected_sign = md5(sign_string.encode()).hexdigest().upper()  # 修改: 最终生成的MD5签名被转换为大写形式
-    #
-    return sign == headers.get("signature")
+    if not signature or not timestamp:
+        app_logger.warning("Missing signature or timestamp in headers")
+        return False
+
+    # 验证时间戳是否为有效数字
+    try:
+        request_time = int(timestamp)
+        app_logger.debug(f"Request timestamp: {request_time}")
+    except ValueError:
+        app_logger.warning("Invalid timestamp format")
+        return False
+
+    # 验证时间戳有效性（防止重放攻击，允许5分钟偏差）
+    current_time = int(time.time())
+    app_logger.debug(f"Current timestamp: {current_time}")
+    # if abs(current_time - request_time) > 300:  # 5分钟
+    #     app_logger.warning("Timestamp out of valid range")
+    #     return False
+
+    # 排除 signature 字段后排序参数 key 并拼接成字符串
+    sorted_params = sorted((k.lower(), v) for k, v in headers.items()
+                           if k.lower() in ["x-timestamp", "location_id", "terminal_id"])
+    param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
+    app_logger.debug(f"Parameters string for signature: {param_str}")
+
+    # 使用 HMAC-SHA256 生成签名
+    expected_sign = hmac.new(
+        secret_key.encode("utf-8"),
+        param_str.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    is_valid = hmac.compare_digest(signature, expected_sign)
+    app_logger.info(f"Signature verification {'passed' if is_valid else 'failed'}")
+
+    return is_valid
 
 
 async def verify_header_signature(request: Request):
     """
     从请求头中提取参数并进行验签
     """
-    headers = dict(request.headers)
-    secret_key = "123456"  # 建议从配置文件读取
+    headers = {k.lower(): v for k, v in dict(request.headers).items()}
+
+    logged_headers = {k: v for k, v in headers.items()
+                      if k.lower() not in ["authorization"]}
+    app_logger.info(f"Verifying header signature with headers: {logged_headers}")
+
+    secret_key = "5faa8e3b095f41480cab2f4b6b70d0cd"  # 建议从配置文件读取
 
     if not verify_signature(headers, secret_key):
+        app_logger.error("Header signature verification failed")
         raise HTTPException(status_code=400, detail="验签失败")
 
-#
-# async def get_segment_data(segment_id: int, session):
-#     data_detail = []
-#     item_data = await get_segments_item_detail(session, segment_id, None, page=1, page_size=1000)
-#
-#     segment_status = 'active'
-#     begin_date = '1900-01-01 00:00:00'
-#
-#     ITM_ITEM_DEAL_PROP = []
-#     if segment_status == 'active':
-#         if item_data['total'] > 0:
-#             for item in item_data['data']:
-#                 ITM_ITEM_DEAL_PROP.append({
-#                     **segment_mapping["ITM_ITEM_DEAL_PROP"],
-#                     "item_id": item.item_id,
-#                     "effective_date": begin_date,
-#                     "itm_deal_property_code": f"ITM_PROP_{segment_id}"
-#                 })
-#     data_detail.append(
-#         {'table': 'ITM_ITEM_DEAL_PROP', 'table_key': ['organization_id', 'itm_deal_property_code'],
-#          "action": "DELETE_AND_INSERT",
-#          "data": ITM_ITEM_DEAL_PROP})
-#     return data_detail
 
-
-@router.get("/worker_api/get_promotion_by_phone")
+@router.get("/worker_api/get_promotion_by_phone", dependencies=[Depends(verify_header_signature)])
 async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
     try:
         promotion_data = await get_segments_by_phone(session, phone_number)
@@ -103,7 +98,7 @@ async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
         }
 
 
-@router.get("/worker_api/get_data")
+@router.get("/worker_api/get_data", dependencies=[Depends(verify_header_signature)])
 async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_db)):
     """
     获取任务（带 Header 验签）
@@ -145,10 +140,10 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
         return {"code": 500, "msg": f"error{e}"}
 
 
-@router.post("/worker_api/call_back")
+@router.post("/worker_api/call_back", dependencies=[Depends(verify_header_signature)])
 async def call_back(data: WorkerCallBack, session=Depends(get_db)):
     """
-    任务回调
+     获取任务（带 Header 验签）
     :return:
     """
     try:

@@ -5,7 +5,7 @@ promotion_mapping:
     org_value: "*"
     generosity_cap: 999999999
     iteration_cap: -1
-    exclude_discounted_flag: 1
+    exclude_discounted_flag: 0
   DEAL_ITEM_1:
     organization_id: 1
     org_code: "*"

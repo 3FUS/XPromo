@@ -1,10 +1,6 @@
 import paramiko
-import logging
-from utils.logger import setup_logger
 
-# 初始化日志记录器
-logger = setup_logger(__name__, "sftp_uploader.log")
-
+from utils.logger import app_logger
 
 def upload_file_to_sftp(
         hostname: str,
@@ -45,16 +41,16 @@ def upload_file_to_sftp(
         import os
 
         if not os.path.exists(local_path):
-            logger.warning(f" {local_path} no....")
+            app_logger.warning(f" {local_path} no....")
             return False
 
         sftp.put(local_path, remote_path)
 
-        logger.info(f" {local_path} uploaded to {hostname}:{remote_path}")
+        app_logger.info(f" {local_path} uploaded to {hostname}:{remote_path}")
         return True
 
     except Exception as e:
-        logger.error(f"SFTP文件上传失败: {str(e)}", exc_info=True)
+        app_logger.error(f"SFTP文件上传失败: {str(e)}", exc_info=True)
         return False
 
     finally:

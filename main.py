@@ -63,10 +63,9 @@ app = FastAPI(
     description="promotion_api"
 )
 
-import logging
-from utils.logger import setup_logger
 
-logger = setup_logger(__name__, log_file="./logs/promotion.log", level=logging.INFO)
+from utils.logger import app_logger
+
 
 # # 创建后台调度器
 # def start_scheduler():
@@ -101,14 +100,6 @@ app.include_router(user_api_router, prefix="/user_api")
 
 PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
 
-#
-# file_handler = TimedRotatingFileHandler('./promotion.log', when='midnight', interval=1, backupCount=7, encoding='utf-8')
-# file_handler.suffix = "%Y-%m-%d"
-# file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-#
-# logger = logging.getLogger()
-# logger.setLevel(logging.INFO)
-# logger.addHandler(file_handler)
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 720
@@ -237,7 +228,7 @@ async def read_segments_condition(segment_type: Segment_Type, session=Depends(ge
                 values = [{'k': row[0], 'v': row[1]} for row in result.fetchall()]
                 condition["condition_value"] = values
             except Exception as e:
-                logging.error(f"Error executing SQL: {sql_query}, Error: {e}")
+                app_logger.error(f"Error executing SQL: {sql_query}, Error: {e}")
                 condition["condition_value"] = []  # 出错时设为空列表
         updated_conditions.append(condition)
 
@@ -269,7 +260,7 @@ def generate_item_mnt_file(segment_id, item_list,
                             f"INSERT|ITEM_DEAL_PROPERTY|{item.get('item_id','')}|{item.get('itm_deal_property_code','')}||{item.get('begin_date','')}|{end_date}|STRING|TRUE|||*|*\n")
         return True
     except Exception as e:
-        logging.error("Error writing MNT file: {}".format(repr(e)))
+        app_logger.error("Error writing MNT file: {}".format(repr(e)))
         return False
 
 
@@ -305,7 +296,7 @@ async def export_segments(segment_type: Segment_Type, segment_id: int,
 
         return {"code": 200, "msg": msg}
     except Exception as e:
-        logging.error("export_tag {}".format(repr(e)))
+        app_logger.error("export_tag {}".format(repr(e)))
         return {"code": 301, "msg": "export tag error {0}".format(repr(e))}
 
 
@@ -383,7 +374,7 @@ async def export_promotion(promotion_id: int, session=Depends(get_db), user_id=D
             await update_promotion_export_time(session, promotion_id, export_date, sessionId)
         return {"code": 200, "msg": "export success"}
     except Exception as e:
-        logging.error("export_tag {}".format(repr(e)))
+        app_logger.error("export_tag {}".format(repr(e)))
         return {"code": 301, "msg": "export tag error {0}".format(repr(e))}
 
 
@@ -452,7 +443,7 @@ async def download_segments(
         )
 
     except Exception as e:
-        logging.error(f"Error downloading segment data: {str(e)}")
+        app_logger.error(f"Error downloading segment data: {str(e)}")
         return {'code': 500, "msg": f"Error downloading data: {str(e)}"}
 
 
@@ -507,7 +498,7 @@ async def upload_segment(segment_type: Segment_Type, name: str, description: str
         try:
             upload_data = pd.read_excel(io.BytesIO(contents), dtype=str)
         except pd.errors.ParserError:
-            logging.error(f"upload_segment: Failed to parse Excel file. User ID: {user_id}, File: {file_name}")
+            app_logger.error(f"upload_segment: Failed to parse Excel file. User ID: {user_id}, File: {file_name}")
             return {'code': 304, "msg": "Failed to parse Excel file."}
 
         if upload_data.empty:
@@ -585,10 +576,10 @@ async def upload_segment(segment_type: Segment_Type, name: str, description: str
 
         return {'code': 200, "segment_id": insert_segment_id, "msg": "Segment submitted successfully."}
     except pd.errors.EmptyDataError:
-        logging.error(f"upload_segment: Uploaded file is empty. User ID: {user_id}, File: {file_name}")
+        app_logger.error(f"upload_segment: Uploaded file is empty. User ID: {user_id}, File: {file_name}")
         return {'code': 303, "msg": "Uploaded file is empty."}
     except Exception as e:
-        logging.error(f"upload_segment: {repr(e)}. User ID: {user_id}, File: {file_name}")
+        app_logger.error(f"upload_segment: {repr(e)}. User ID: {user_id}, File: {file_name}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -653,7 +644,7 @@ async def read_segments(
                 'segment_schedule': segment_schedule
                 }
     except Exception as e:
-        logging.error(f"Error Get Segments: {str(e)}")
+        app_logger.error(f"Error Get Segments: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -664,7 +655,7 @@ async def submit_segments(
 ):
     try:
 
-        logger.info(f"Received segment data: {repr(segment.model_dump())}")
+        app_logger.info(f"Received segment data: {repr(segment.model_dump())}")
         if segment.segment_type.value == Segment_Type.item.value:
             item_segment = segment.segment
             if item_segment.segment_id:
@@ -709,7 +700,7 @@ async def submit_segments(
                                        session)
         return {'code': 200, "segment_id": insert_segment_id, "msg": "Segment submitted successfully."}
     except Exception as e:
-        logger.error(f"Error Submit Segments: {str(e)}")
+        app_logger.error(f"Error Submit Segments: {str(e)}")
         return {'code': 300, "msg": str(e)}
 
 
@@ -746,10 +737,10 @@ async def delete_segments(
             return {'code': 300, "msg": "Invalid segment type."}
 
         data = {'code': 200, "msg": f"Segment deleted successfully user: {user_id}."}
-        logging.info(data)
+        app_logger.info(data)
         return data
     except Exception as e:
-        logger.error(f"Error Delete Segments: {str(e)}")
+        app_logger.error(f"Error Delete Segments: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -802,7 +793,7 @@ async def read_segments_details(
             "segments_detail": segments_detail
         }
     except Exception as e:
-        logger.error(f"Error reading segments details: {str(e)}")
+        app_logger.error(f"Error reading segments details: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -815,7 +806,7 @@ async def read_store_list(key_word: str = None,
         store_list = await get_store_list(session, key_word, page, page_size)
         return {'code': 200, 'store_list': store_list}
     except Exception as e:
-        logger.error(f"Error reading store list: {str(e)}")
+        app_logger.error(f"Error reading store list: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -835,7 +826,7 @@ async def read_promotion_defult(class_id: int, subclass_id: int = 0, user_id=Dep
         return {'code': 200, 'template_default': p_default}
     except Exception as e:
         print('promotion_template_default error')
-        logger.error(f"Error reading promotion default: {str(e)}")
+        app_logger.error(f"Error reading promotion default: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -849,7 +840,7 @@ async def read_promotion_defult_p(class_id: int, subclass_id: int = 0, user_id=D
         return {'code': 200, 'template_default': p_default}
     except Exception as e:
         print('promotion_template_default error')
-        logger.error(f"Error reading promotion default: {str(e)}")
+        app_logger.error(f"Error reading promotion default: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -896,7 +887,7 @@ async def submit_promotion(
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
-        logging.info(f"Submit Promotion: {repr(promotionsubmit.model_dump())}")
+        app_logger.info(f"Submit Promotion: {repr(promotionsubmit.model_dump())}")
 
         if promotionsubmit.promotion.promotion_id:
             promotion_id = promotionsubmit.promotion.promotion_id
@@ -930,7 +921,7 @@ async def submit_promotion(
 
         return {'code': 200, "promotion_id": promotion_id, "msg": "Promotion submitted successfully."}
     except Exception as e:
-        logging.error(f"Error submitting promotion: {str(e)}")
+        app_logger.error(f"Error submitting promotion: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
 
@@ -999,7 +990,7 @@ async def read_promotion(
         locs_data = await get_location_detail_by_promotionId(promotion_id, session)
         df_locs = locs_data['data']
     except Exception as e:
-        logging.error(f"Error reading promotion: {str(e)}")
+        app_logger.error(f"Error reading promotion: {str(e)}")
         return {'code': 301, "msg": str(e)}
 
     return {
@@ -1024,7 +1015,7 @@ async def read_promotion_dashboard(
         res_item = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.item)
         res_location = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.location)
         res_customer = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.customer)
-        logging.info(res_item)
+        app_logger.info(res_item)
         data = {
             "Promotion_Count": {
                 "Total": res_promo['Total'],
@@ -1064,12 +1055,11 @@ async def read_promotion_dashboard(
                     "In_Use": res_location.get('In_Use', 0)
                 }
         }
-        logging.info(data)
+        app_logger.info(data)
         return {'code': 200, 'data': data}
     except Exception as e:
-        logging.error(f"promotion_dashboard: {repr(e)}")
+        app_logger.error(f"promotion_dashboard: {repr(e)}")
         return {'code': 301, "msg": str(e)}
-
 
 
 # # # # #

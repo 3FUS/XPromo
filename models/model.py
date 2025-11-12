@@ -18,8 +18,8 @@ class Segment_Condition(Base):
 class Promotion(Base):
     __tablename__ = 'promotions'
     promotion_id = Column(Integer, primary_key=True)
-    name = Column(NVARCHAR(30), index=True)
-    description = Column(NVARCHAR(60))
+    name = Column(NVARCHAR(80), index=True)
+    description = Column(NVARCHAR(120))
     start_date = Column(DATETIME)
     end_date = Column(DATETIME)
     iteration_cap = Column(Integer)

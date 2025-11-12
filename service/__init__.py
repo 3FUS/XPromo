@@ -3,9 +3,9 @@ from sqlalchemy import create_engine, URL
 from models.model import Base
 from sqlalchemy.pool import QueuePool
 
-from utils.logger import setup_logger
+from utils.logger import app_logger
 
-logger = setup_logger(__name__)
+
 
 import os
 import sys
@@ -32,7 +32,7 @@ def get_engine():
     db_config = DATABASES.get(DB_TYPE)
 
     if not db_config:
-        logger.error(f"Database configuration for {DB_TYPE} not found.")
+        app_logger.error(f"Database configuration for {DB_TYPE} not found.")
         raise ValueError(f"Database configuration for {DB_TYPE} not found.")
 
     try:
@@ -83,7 +83,7 @@ def get_engine():
                 database=db_config["database"]
             )
         else:
-            logger.error(f"Unsupported database type: {DB_TYPE}")
+            app_logger.error(f"Unsupported database type: {DB_TYPE}")
             raise ValueError(f"Unsupported database type: {DB_TYPE}")
 
         # return create_engine(
@@ -96,12 +96,12 @@ def get_engine():
             max_overflow=max_overflow,
             pool_recycle=pool_recycle
         )
-        logger.info("Database engine created successfully.")
+        app_logger.info("Database engine created successfully.")
         return engine
 
     except Exception as e:
         print(f"Error creating database engine: {str(e)}")
-        logger.exception("Failed to create database engine.")
+        app_logger.exception("Failed to create database engine.")
         raise
 
 

@@ -10,7 +10,7 @@ from service.access_service import create_sys_user, create_sys_role, fetch_user_
     update_sys_role, get_user_by_code, get_role_by_code, create_sys_user_role, get_role_by_user_code, \
     update_role_status, update_user_status, get_permissions_with_role, batch_update_role_permissions, \
     get_permissions_with_user, delete_user_by_code, delete_role_by_code, get_org_hierarchy, \
-    batch_update_role_org_permissions, get_max_permission_nodes
+    batch_update_role_org_permissions, get_max_permission_nodes, change_user_password
 
 
 @router.get("/user/user_list", tags=["user"], description='获取用户列表')
@@ -48,6 +48,20 @@ async def submit_user(user: SysUserSubmit, session=Depends(get_db)):
     except Exception as e:
         return {"code": 301, "msg": f"submit error {repr(e)}"}
 
+@router.post("/user/change_password", tags=["user"], description='修改用户密码')
+async def change_password(
+    user_code: str,
+    old_password: str,
+    new_password: str,
+    session=Depends(get_db)
+):
+    try:
+        await change_user_password(session, user_code, old_password, new_password)
+        return {"code": 200, "msg": "密码修改成功"}
+    except ValueError as e:
+        return {"code": 301, "msg": str(e)}
+    except Exception as e:
+        return {"code": 301, "msg": f"密码修改失败: {repr(e)}"}
 
 @router.post("/user/role_submit", tags=["user"], description='角色')
 async def submit_role(role: SysRoleSubmit, session=Depends(get_db)):
