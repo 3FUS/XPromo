@@ -1,6 +1,7 @@
+import json
 from enum import Enum
 import yaml
-from fastapi import FastAPI, Depends, Query, UploadFile, File, HTTPException, status
+from fastapi import FastAPI, Depends, Query, UploadFile, File, HTTPException, status, Body
 from starlette.responses import StreamingResponse
 
 import schemas
@@ -11,7 +12,7 @@ from worker_api.api import router as worker_api_router
 from routers.user import router as user_api_router
 import service
 from models.model import SegmentsItem, SegmentsItemDetail, SegmentsCustomer, SegmentsCustomerDetail, SegmentsLocation, \
-    SegmentsLocationDetail
+    SegmentsLocationDetail, PromotionItemSegments, PromotionCondition, PromotionResult, PromotionImport
 from schemas import SegmentSubmit, PromotionSubmit
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -21,7 +22,8 @@ import io
 import os
 import asyncio
 from sqlalchemy import text
-from typing import List
+from typing import List, Union
+from utils.translator import get_message
 
 from service.segments_service \
     import create_segment_item, delete_segment_item, update_segment_item, \
@@ -41,7 +43,8 @@ from service.segments_service \
     update_segment_some, delete_segment_customer_detail, delete_segment_location_detail, \
     get_customer_segment_by_name, get_location_segment_by_name, create_customer_segments_detail, \
     create_location_segments_detail, get_item_segments_in_use_by_id, delete_segment_location, delete_segment_customer, \
-    get_location_segments_in_use_by_id, get_customer_segments_in_use_by_id, get_store_list, process_segment_data
+    get_location_segments_in_use_by_id, get_customer_segments_in_use_by_id, get_store_list, process_segment_data, \
+    generate_segment_id
 
 from service.promotion import create_promotion, create_promotion_condition, create_promotion_result, \
     create_promotion_item_segments, create_promotion_location_segments, create_promotion_customer_segments, \
@@ -51,12 +54,14 @@ from service.promotion import create_promotion, create_promotion_condition, crea
     get_promotion_location_segments_by_id, delete_promotion_customer_segments, delete_promotion_location_segments, \
     update_promotion_result, update_promotion_status, update_promotion_condition, get_promotion_location_detail_by_id, \
     update_promotion_export_time, delete_promotion, create_promotion_org_data, get_promotion_org_join_by_id, \
-    get_promotion_location_detail_by_id_v2, process_promotion_data
+    get_promotion_location_detail_by_id_v2, process_promotion_data, delete_promotion_condition, delete_promotion_result, \
+    delete_promotion_import, get_promotion_import_by_id
 
 from service.worker import create_worker_task
-from service.access_service import verify_password
+from service.access_service import verify_password, get_sys_user_configuration
 from utils.segment_etl import run_segment_cleaning
 from service import get_db
+from utils.config_manager import config_manager
 
 app = FastAPI(
     title="promotion_api",
@@ -85,18 +90,30 @@ from utils.logger import app_logger
 file = open('config/segments_condition.yaml', 'r', encoding='utf-8')
 dict_condition = yaml.safe_load(file)
 
-config_file = open('config/config.yaml', 'r', encoding='utf-8')
-dict_config = yaml.safe_load(config_file)
 
-directory = dict_config['MNT_PATH']
-os.makedirs(directory, exist_ok=True)
+def on_config_update():
+    global dict_config, directory, Export_Type, PROMOTION_TABLES, template_config
+    # dict_config = config_manager.get_config("config/config.yaml")
+    file_config = open('config/config.yaml', 'r', encoding='utf-8')
+    dict_config = yaml.safe_load(file_config)
 
-Export_Type = dict_config['Export_Type']
+    template_config = config_manager.get_config()
+    directory = dict_config['MNT_PATH']
+    os.makedirs(directory, exist_ok=True)
+    Export_Type = dict_config['Export_Type']
+    PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
 
+
+config_manager.add_callback(on_config_update)
+on_config_update()
+
+from routers.configuration import router as configuration_api_router
+
+app.include_router(configuration_api_router)
 app.include_router(worker_api_router, prefix="/worker")
 app.include_router(user_api_router, prefix="/user_api")
 
-PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
+# PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 720
@@ -172,14 +189,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         return {"code": 301, "msg": "Incorrect username or password"}
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user['username']}, expires_delta=access_token_expires
+        data={"sub": user['user_code']}, expires_delta=access_token_expires
     )
-    return {"code": 200, "access_token": access_token, "token_type": "bearer"}
+    return {"code": 200, "access_token": access_token, "token_type": "bearer", "configuration": user['configuration'], "user_code": user['user_code'], "user_name": user['username']}
 
 
 async def authenticate_user(username: str, password: str, session):
     if await verify_password(session, username, password):
-        return {"username": username}
+        user_info = await get_sys_user_configuration(session, username)
+        return {"user_code": user_info['user_code'],"username": user_info['user_name'], "configuration": user_info['configuration']}
     return None
 
 
@@ -369,10 +387,10 @@ async def export_promotion(promotion_id: int, session=Depends(get_db), user_id=D
                                           {"last_session_id": sessionId, "export_time": datetime.now()})
             sessionId = await create_worker_task(session, df_locs['rtl_loc_id'].tolist(), 'promotion', promotion_id)
             await update_promotion_export_time(session, promotion_id, export_date, sessionId)
-        return {"code": 200, "msg": "export success"}
+        return {"code": 200, "msg": get_message("export_tag_success")}
     except Exception as e:
         app_logger.error("export_tag {}".format(repr(e)))
-        return {"code": 301, "msg": "export tag error {0}".format(repr(e))}
+        return {"code": 301, "msg": get_message("export_tag_error", error=str(e))}
 
 
 @app.get("/promotion_api/segments/download_segments")
@@ -808,15 +826,36 @@ async def read_store_list(key_word: str = None,
 
 
 @app.get("/promotion_api/promotion/promotion_class")
-async def read_promotion_class(user_id=Depends(get_current_user)):
-    p_class = dict_config['promotion_class']
+async def read_promotion_class(
+        lang: str = Query("en", description="Language preference: 'en' for English, 'zh' for Chinese"),
+        user_id=Depends(get_current_user)):
+    p_class = [item.copy() for item in template_config['promotion_class']]
+    app_logger.info(f"Promotion class: {p_class}")
+    # 根据语言偏好设置返回相应的描述
+    if lang == "zh":
+        # 处理中文
+        for item in p_class:
+            if 'code_zh' in item:
+                item['code'] = item['code_zh']
+            if 'description_zh' in item:
+                item['description'] = item['description_zh']
+            # 移除中文字段，避免暴露给前端多余的数据
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+    # else:
+    #     # 处理英文 - 移除中文字段
+    #     for item in p_class:
+    #         # 移除中文字段，避免暴露给前端多余的数据
+    #         item.pop('code_zh', None)
+    #         item.pop('description_zh', None)
+
     return {'code': 200, 'promotion_class': p_class}
 
 
 @app.get("/promotion_api/promotion/promotion_default")
-async def read_promotion_defult(class_id: int, subclass_id: int = 0, user_id=Depends(get_current_user)):
+async def read_promotion_defult(class_id: str, subclass_id: str = "0", user_id=Depends(get_current_user)):
     try:
-        p_default = dict_config['promotion_template_default']
+        p_default = template_config['promotion_template_default']
         if p_default:
             p_default = p_default[class_id][subclass_id]
 
@@ -828,11 +867,25 @@ async def read_promotion_defult(class_id: int, subclass_id: int = 0, user_id=Dep
 
 
 @app.get("/promotion_api/promotion/promotion_default_p")
-async def read_promotion_defult_p(class_id: int, subclass_id: int = 0, user_id=Depends(get_current_user)):
+async def read_promotion_defult_p(class_id: str, subclass_id: str = "0", user_id=Depends(get_current_user)):
     try:
-        p_default = dict_config['promotion_template_default_p']
+        p_default = template_config.get('promotion_template_default_p')
         if p_default:
-            p_default = p_default[class_id][subclass_id]
+            # 检查 class_id 是否存在
+            if class_id not in p_default:
+                return {'code': 301, "msg": f"Class ID {class_id} not found"}
+
+            class_data = p_default[class_id]
+
+            # 检查 subclass_id 是否存在
+            if subclass_id not in class_data:
+                # 如果指定的 subclass_id 不存在，返回默认值（subclass_id=0）
+                if 0 in class_data:
+                    p_default = class_data[0]
+                else:
+                    return {'code': 301, "msg": f"Subclass ID {subclass_id} not found for class {class_id}"}
+            else:
+                p_default = class_data[subclass_id]
 
         return {'code': 200, 'template_default': p_default}
     except Exception as e:
@@ -854,9 +907,36 @@ async def read_promotion_type(user_id=Depends(get_current_user)):
 
 
 @app.get("/promotion_api/promotion/promotion_template")
-async def read_promotion_template(class_id: int, user_id=Depends(get_current_user)):
-    p_template = dict_config['promotion_template']
-    filtered_data = [item for item in p_template if item['class_id'] == class_id]
+async def read_promotion_template(
+        class_id: str,
+        lang: str = Query("en", description="Language preference: 'en' for English, 'zh' for Chinese"),
+        user_id=Depends(get_current_user)
+):
+    app_logger.info(f"read_promotion_template called with class_id={class_id}, lang={lang}, user_id={user_id}")
+
+    p_template = template_config['promotion_template']
+    filtered_data = [item.copy() for item in p_template if item['class_id'] == class_id]
+
+    # 根据语言偏好设置返回相应的描述
+    if lang == "zh":
+        app_logger.info("Processing Chinese language request")
+        for item in filtered_data:
+            if 'code_zh' in item:
+                item['code'] = item['code_zh']
+            if 'description_zh' in item:
+                item['description'] = item['description_zh']
+            # 移除中文字段，避免暴露给前端多余的数据
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+    else:
+        app_logger.info("Processing English language request - removing Chinese fields")
+        # 处理英文 - 移除中文字段
+        for item in filtered_data:
+            # 移除中文字段，避免暴露给前端多余的数据
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+
+    app_logger.info(f"Returning {len(filtered_data)} items after language processing")
     return {'code': 200, 'promotion_template': filtered_data}
 
 
@@ -881,6 +961,7 @@ async def read_promotion_group(user_id=Depends(get_current_user)):
 @app.post("/promotion_api/promotion/submit")
 async def submit_promotion(
         promotionsubmit: PromotionSubmit,
+        lang: str = Query("en"),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
@@ -889,22 +970,30 @@ async def submit_promotion(
         if promotionsubmit.promotion.promotion_id:
             promotion_id = promotionsubmit.promotion.promotion_id
             await update_promotion(session, promotionsubmit.promotion, user_id)
-            await update_promotion_condition(session, promotionsubmit.promotion.promotion_id,
-                                             promotionsubmit.promotion_condition, user_id)
-            await update_promotion_result(session, promotionsubmit.promotion.promotion_id,
-                                          promotionsubmit.promotion_result, user_id)
+            # await update_promotion_condition(session, promotionsubmit.promotion.promotion_id,
+            #                                  promotionsubmit.promotion_condition, user_id)
+            # app_logger.info(f"Submit Update promotion condition: {promotion_id}")
+            # await update_promotion_result(session, promotionsubmit.promotion.promotion_id,
+            #                               promotionsubmit.promotion_result, user_id)
+            await delete_promotion_condition(session, promotion_id)
+            await delete_promotion_result(session, promotion_id)
             await delete_promotion_item_segments(session, promotion_id)
             await delete_promotion_location_segments(session, promotion_id)
             await delete_promotion_customer_segments(session, promotion_id)
         else:
             new_promotion = await create_promotion(session, promotionsubmit.promotion, user_id)
             promotion_id = new_promotion.promotion_id
-            await create_promotion_condition(session, promotion_id, promotionsubmit.promotion,
-                                             promotionsubmit.promotion_condition)
-            await create_promotion_result(session, promotion_id, promotionsubmit.promotion,
-                                          promotionsubmit.promotion_result)
+            # await create_promotion_condition(session, promotion_id, promotionsubmit.promotion,
+            #                                  promotionsubmit.promotion_condition)
+            # await create_promotion_result(session, promotion_id, promotionsubmit.promotion,
+            #                               promotionsubmit.promotion_result)
 
-        await create_promotion_item_segments(session, promotion_id, promotionsubmit.promotion,
+        await create_promotion_condition(session, promotion_id, promotionsubmit.promotion,
+                                         promotionsubmit.promotion_condition)
+        await create_promotion_result(session, promotion_id, promotionsubmit.promotion,
+                                      promotionsubmit.promotion_result)
+
+        await create_promotion_item_segments(session, promotion_id, user_id,
                                              promotionsubmit.promotion_item_segments)
         if promotionsubmit.promotion_customer_segments:
             await create_promotion_customer_segments(session, promotion_id, promotionsubmit.promotion,
@@ -916,7 +1005,7 @@ async def submit_promotion(
             await create_promotion_org_data(session, promotion_id,
                                             promotionsubmit.promotion_org_data)
 
-        return {'code': 200, "promotion_id": promotion_id, "msg": "Promotion submitted successfully."}
+        return {'code': 200, "promotion_id": promotion_id, "msg": get_message("promotion_submitted", lang)}
     except Exception as e:
         app_logger.error(f"Error submitting promotion: {str(e)}")
         return {'code': 301, "msg": str(e)}
@@ -925,6 +1014,7 @@ async def submit_promotion(
 @app.delete("/promotion_api/promotion/delete")
 async def delete_promo(
         promotion_id: int,
+        lang: str = Query("en"),
         session=Depends(get_db)
 ):
     try:
@@ -936,7 +1026,7 @@ async def delete_promo(
         await delete_promotion(session, promotion_id)
         await delete_promotion_item_segments(session, promotion_id)
         await delete_promotion_location_segments(session, promotion_id)
-        return {'code': 200, "msg": "Promotion deleted successfully."}
+        return {'code': 200, "msg": get_message("promotion_deleted", lang)}
     except Exception as e:
         return {'code': 301, "msg": str(e)}
 
@@ -945,11 +1035,12 @@ async def delete_promo(
 async def set_promotion_status(
         promotion_id: int,
         promotion_status: Segment_Status,
+        lang: str = Query("en"),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
         await update_promotion_status(session, promotion_id, promotion_status.value)
-        return {'code': 200, "msg": "Promotion status updated successfully."}
+        return {'code': 200, "msg": get_message("promotion_status_updated", lang)}
     except Exception as e:
         return {'code': 301, "msg": str(e)}
 
@@ -975,13 +1066,14 @@ async def read_promotion(
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
-        promotion_header, promotion_condition, promotion_result, promotion_item_segments, promotion_location_segments, promotion_customer_segments = await asyncio.gather(
+        promotion_header, promotion_condition, promotion_result, promotion_item_segments, promotion_location_segments, promotion_customer_segments, promotion_import = await asyncio.gather(
             get_promotion_by_id(session, promotion_id),
             get_promotion_condition_by_id(session, promotion_id),
             get_promotion_result_by_id(session, promotion_id),
             get_promotion_item_segments_by_id(session, promotion_id),
             get_promotion_location_segments_by_id(session, promotion_id),
-            get_promotion_customer_segments_by_id(session, promotion_id)
+            get_promotion_customer_segments_by_id(session, promotion_id),
+            get_promotion_import_by_id(session, promotion_id)
         )
         promotion_org_join = await get_promotion_org_join_by_id(session, promotion_id)
         locs_data = await get_location_detail_by_promotionId(promotion_id, session)
@@ -999,8 +1091,307 @@ async def read_promotion(
         'promotion_customer_segments': promotion_customer_segments,
         'promotion_location_segments': promotion_location_segments,
         'location_count': 0 if df_locs is None else len(df_locs),
-        'promotion_org_data': promotion_org_join
+        'promotion_org_data': promotion_org_join,
+        'promotion_import': promotion_import
     }
+
+
+@app.post("/promotion_api/promotion/import_promotion_segments")
+async def import_promotion_segments(
+        submit: Union[dict, str, None] = Body(None),
+        uFile: UploadFile = File(None),
+        preview: bool = Query(False, description="是否为预览模式"),
+        session=Depends(get_db),
+        user_id=Depends(get_current_user)
+):
+    """
+    根据Excel中的价格分组导入商品段并关联到促销
+
+    Excel需包含两列: item_id 和 price
+    系统将根据price值自动分组，并为每组创建一个商品段
+    """
+    try:
+        if not preview:
+            if isinstance(submit, str):
+                try:
+                    submit_data = json.loads(submit)
+                except json.JSONDecodeError:
+                    raise ValueError("submit parameter is not valid JSON")
+            else:
+                submit_data = submit
+
+            # 转换为PromotionSubmit_v1模型
+            try:
+                submit_model = schemas.PromotionSubmit_v1(**submit_data)
+            except Exception as e:
+                raise ValueError(f"Failed to validate submit data as PromotionSubmit_v1: {str(e)}")
+
+            if submit_model.promotion.promotion_id:
+                promotion_id = submit_model.promotion.promotion_id
+                await update_promotion(session, submit_model.promotion, user_id)
+                await delete_promotion_location_segments(session, promotion_id)
+                await delete_promotion_customer_segments(session, promotion_id)
+            else:
+                new_promotion = await create_promotion(session, submit_model.promotion, user_id)
+                promotion_id = new_promotion.promotion_id
+
+            if submit_model.promotion_customer_segments:
+                await create_promotion_customer_segments(session, promotion_id, submit_model.promotion,
+                                                         submit_model.promotion_customer_segments)
+            if submit_model.promotion_location_segments:
+                await create_promotion_location_segments(session, promotion_id, submit_model.promotion,
+                                                         submit_model.promotion_location_segments)
+            if submit_model.promotion_org_data:
+                await create_promotion_org_data(session, promotion_id,
+                                                submit_model.promotion_org_data)
+
+            if uFile is None:
+                return {'code': 200, "promotion_id": promotion_id, "msg": "Promotion submitted successfully."}
+
+        df = await _validate_and_read_file(uFile)
+        df = _clean_and_standardize_data(df)
+
+        if preview:
+            return await _generate_preview_response(df)
+
+        # 验证促销存在性
+        promotion = await _validate_promotion_exists(session, promotion_id)
+
+        # 处理数据导入
+        result = await _process_import_data(session, promotion_id, df, user_id, uFile.filename)
+
+        return result
+
+    except Exception as e:
+        session.rollback()
+        app_logger.error(f"import_promotion_segments failed: {repr(e)}. User ID: {user_id}, File: {uFile.filename}",
+                         exc_info=True)
+        return {'code': 301, "msg": str(e)}
+
+
+async def _validate_and_read_file(uFile: UploadFile):
+    """验证文件并读取数据"""
+    # 限制文件大小
+    max_file_size = 10 * 1024 * 1024  # 10MB
+    if uFile.size > max_file_size:
+        raise ValueError("File size exceeds the maximum allowed limit.")
+
+    contents = await uFile.read()
+    file_name = uFile.filename
+
+    # 检查文件是否为空
+    if not contents:
+        raise ValueError("Uploaded file is empty.")
+
+    # 读取Excel文件
+    try:
+        df = pd.read_excel(io.BytesIO(contents), dtype=str)
+        app_logger.info(f"Excel file parsed successfully, shape: {df.shape}")
+    except pd.errors.ParserError as e:
+        raise ValueError(f"Failed to parse Excel file: {str(e)}")
+    except Exception as e:
+        raise ValueError(f"Failed to parse Excel file: {str(e)}")
+
+    if df.empty:
+        raise ValueError("Uploaded file is empty (no data)")
+
+    return df
+
+
+def _clean_and_standardize_data(df):
+    """清理和标准化数据"""
+    # 标准化列名
+    original_columns = df.columns.tolist()
+    df = standardize_columns(df)
+
+    # 检查必需列是否存在
+    required_columns = ['item_id', 'price']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing columns: {missing_columns}")
+
+    # 清理数据
+    initial_count = len(df)
+    df = df.dropna(subset=['item_id', 'price'])
+
+    df['price'] = pd.to_numeric(df['price'], errors='coerce')
+    df = df.dropna(subset=['price'])
+
+    if len(df) == 0:
+        raise ValueError("No valid data found in the uploaded file.")
+
+    return df
+
+
+async def _generate_preview_response(df):
+    """生成预览响应"""
+    price_groups = df.groupby('price')
+    groups_info = []
+    for price, group in price_groups:
+        groups_info.append({
+            "price": float(price),
+            "item_count": len(group),
+            "items": group[['item_id', 'price']].to_dict('records')
+        })
+
+    return {
+        'code': 200,
+        'preview': True,
+        'data': df.to_dict('records'),
+        'total_items': len(df),
+        'total_groups': len(price_groups)
+    }
+
+
+async def _validate_promotion_exists(session, promotion_id):
+    """验证促销是否存在"""
+    promotion = await get_promotion_by_id(session, promotion_id)
+    if not promotion:
+        raise ValueError(f"Promotion with id {promotion_id} not found.")
+    return promotion
+
+
+async def _process_import_data(session, promotion_id, df, user_id, filename):
+    """处理数据导入"""
+    # 清理现有数据
+    await _cleanup_existing_data(session, promotion_id)
+
+    # 按价格分组处理
+    price_groups = df.groupby('price')
+
+    created_segments = []
+    segment_ids = []
+    set_id_counter = 1
+
+    promotion_import = PromotionImport(
+        promotion_id=promotion_id,
+        file_name=filename,
+        count_success=len(df),
+        create_time=datetime.now(),
+        create_user=user_id
+    )
+    session.add(promotion_import)
+
+    for price, group in price_groups:
+        # 创建段和关联数据
+        segment_data = await _create_segment_for_price_group(
+            session, promotion_id, price, group, set_id_counter, user_id
+        )
+
+        created_segments.append(segment_data["segment_info"])
+        segment_ids.append(segment_data["segment_id"])
+        set_id_counter += 1
+
+    session.commit()
+
+    return {
+        'code': 200,
+        'preview': False,
+        'promotion_id': promotion_id,
+        'msg': f"Successfully imported {len(segment_ids)} segments with {len(df)} items",
+        'created_segments': created_segments,
+        'segment_ids': segment_ids
+    }
+
+
+async def _cleanup_existing_data(session, promotion_id):
+    await delete_promotion_condition(session, promotion_id)
+    await delete_promotion_result(session, promotion_id)
+    await delete_promotion_item_segments(session, promotion_id)
+    await delete_promotion_import(session, promotion_id)
+
+
+async def _create_segment_for_price_group(session, promotion_id, price, group, set_id, user_id):
+    """为价格组创建段和关联数据"""
+    # 创建段名称
+    segment_name = f"segment (price: {price})"[:30]
+    segment_desc = f"Auto-created segment (price: {price})"[:60]
+
+    # 创建商品段
+    new_segment = SegmentsItem(
+        segment_id=generate_segment_id(session, "Item"),
+        name=segment_name,
+        description=segment_desc,
+        create_type='import',
+        segment_status='active',
+        condition_type='or',
+        create_time=datetime.now(),
+        create_user=user_id,
+        sub_count=len(group)
+    )
+    session.add(new_segment)
+
+    # 创建段详情
+    await _create_segment_details(session, new_segment.segment_id, group)
+
+    # 创建促销条件
+    new_condition = PromotionCondition(
+        promotion_id=promotion_id,
+        set_id=set_id,
+        condition_type='Quantity',
+        threshold_style='Every Quantity',
+        MinQty=1,
+        create_time=datetime.now()
+    )
+    session.add(new_condition)
+
+    # 创建促销结果
+    new_result = PromotionResult(
+        promotion_id=promotion_id,
+        set_id=set_id,
+        apply_type='Line',
+        action_qty=1,
+        discount_type='NEW_PRICE',
+        overlap=0,
+        discount_value=price,
+        create_time=datetime.now()
+    )
+    session.add(new_result)
+
+    # 创建促销商品段关联
+    promo_segment = PromotionItemSegments(
+        promotion_id=promotion_id,
+        set_id=set_id,
+        segment_id=new_segment.segment_id,
+        include=1,
+        item_type='Condition',
+        create_time=datetime.now(),
+        create_user=user_id
+    )
+    session.add(promo_segment)
+
+    return {
+        "segment_id": new_segment.segment_id,
+        "segment_info": {
+            "segment_id": new_segment.segment_id,
+            "segment_name": segment_name,
+            "price": float(price),
+            "item_count": len(group),
+            "set_id": set_id
+        }
+    }
+
+
+async def _create_segment_details(session, segment_id, group):
+    """创建段详情"""
+    segment_details = []
+
+    for idx, (_, row) in enumerate(group.iterrows()):
+        detail = SegmentsItemDetail(
+            segment_id=segment_id,
+            item_id=row['item_id'],
+            create_time=datetime.now()
+        )
+        segment_details.append(detail)
+
+        # 每1000条记录批量添加一次以提高性能
+        if (idx + 1) % 1000 == 0:
+            session.add_all(segment_details)
+            segment_details = []
+
+    # 添加剩余的记录
+    if segment_details:
+        session.add_all(segment_details)
 
 
 @app.get("/promotion_api/promotion/promotion_dashboard")

@@ -23,8 +23,8 @@ class Promotion(Base):
     start_date = Column(DATETIME)
     end_date = Column(DATETIME)
     iteration_cap = Column(Integer)
-    class_id = Column(Integer)
-    subclass_id = Column(Integer, default=0)
+    class_id = Column(String(10))
+    subclass_id = Column(String(30))
     promotion_group = Column(Integer)
     promotion_level = Column(Integer)
     promotion_type = Column(String(30))
@@ -106,6 +106,18 @@ class PromotionOrgJoin(Base):
     promotion_id = Column(Integer, primary_key=True)
     org_code = Column(String(30), primary_key=True)
     org_value = Column(String(60), primary_key=True)
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
+
+class PromotionImport(Base):
+    __tablename__ = 'promotions_import'
+    promotion_id = Column(Integer, primary_key=True)
+    file_name = Column(NVARCHAR(180))
+    count_success = Column(Integer)
+    count_fail = Column(Integer)
     create_time = Column(DATETIME)
     create_user = Column(String(30))
     update_time = Column(DATETIME)
@@ -306,6 +318,7 @@ class WorkerTask(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+
 class WorkerTerminal(Base):
     __tablename__ = 'worker_terminal'
     location_id = Column(Integer, primary_key=True)
@@ -320,11 +333,12 @@ class WorkerTerminal(Base):
 class SysUser(Base):
     __tablename__ = 'sys_user'
     user_code = Column(String(60), primary_key=True)
-    user_name = Column(String(60), unique=True)
+    user_name = Column(String(60))
     user_password = Column(String(60))
     user_status = Column(String(30))
     user_email = Column(String(60))
     language = Column(String(30))
+    configuration = Column(Integer, default=0)
     create_time = Column(DATETIME)
     create_user = Column(String(30))
     update_time = Column(DATETIME)

@@ -446,9 +446,8 @@ async def update_segment_customer_status(session, segment_id, segment_status):
 
 
 async def get_segments_item_list(session, key_word=None, segment_status=None, page=1, page_size=30):
-    # query = session.query(SegmentsItem)
     try:
-        query = session.query(
+        base_query = session.query(
             SegmentsItem.segment_id,
             SegmentsItem.name,
             SegmentsItem.description,
@@ -474,21 +473,29 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
                    SegmentsItem.create_user,
                    SegmentsItem.last_export_time)
 
+        # 应用筛选条件
         if key_word:
-            key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
-            query = query.filter(
+            key_word = f"%{key_word}%"
+            base_query = base_query.filter(
+                (SegmentsItem.segment_id.like(key_word)) |
                 (SegmentsItem.name.like(key_word)) |
                 (SegmentsItem.description.like(key_word)) |
                 (SegmentsItem.create_user.like(key_word))
             )
+
         if segment_status != 'ALL':
-            query = query.filter(SegmentsItem.segment_status == segment_status)
+            base_query = base_query.filter(SegmentsItem.segment_status == segment_status)
 
-        query = query.order_by(SegmentsItem.create_time.desc())
+        # 排序
+        base_query = base_query.order_by(SegmentsItem.create_time.desc())
 
-        total = query.count()
-        items = query.offset((page - 1) * page_size).limit(page_size).all()
+        # 先获取总数（用于分页计算）
+        total = base_query.count()
 
+        # 再执行分页查询
+        items = base_query.offset((page - 1) * page_size).limit(page_size).all()
+
+        # 格式化结果
         formatted_items = [
             {
                 "segment_id": item.segment_id,
@@ -507,6 +514,7 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
             }
             for item in items
         ]
+
         return {
             "total": total,
             "page": page,
@@ -522,6 +530,7 @@ async def get_segments_location_list(session, key_word=None, segment_status=None
     if key_word:
         key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
         query = query.filter(
+            (SegmentsLocation.segment_id.like(key_word)) |
             (SegmentsLocation.name.like(key_word)) |
             (SegmentsLocation.description.like(key_word)) |
             (SegmentsLocation.create_user.like(key_word))
@@ -553,6 +562,7 @@ async def get_segments_customer_list(session, key_word=None, segment_status=None
     if key_word:
         key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
         query = query.filter(
+            (SegmentsCustomer.segment_id.like(key_word)) |
             (SegmentsCustomer.name.like(key_word)) |
             (SegmentsCustomer.description.like(key_word)) |
             (SegmentsCustomer.create_user.like(key_word))
@@ -894,27 +904,44 @@ mapping_file = open('./config/mapping.yaml', 'r', encoding='utf-8')
 mapping_config = yaml.safe_load(mapping_file)
 
 segment_mapping = mapping_config.get("segment_mapping", {})
+
+
 async def process_segment_data(segment_id: int, session):
     data_detail = []
-    item_data = await get_segments_item_detail(session, segment_id, None, page=1, page_size=1000)
+
+    # 初始化分页参数
+    page = 1
+    page_size = 1000  # 可根据实际情况调整
+    all_item_data = []
+
+    while True:
+        item_data = await get_segments_item_detail(session, segment_id, None, page=page, page_size=page_size)
+        all_item_data.extend(item_data['data'])
+
+        # 判断是否还有下一页
+        if len(item_data['data']) < page_size:
+            break
+        page += 1
 
     segment_status = 'active'
     begin_date = '1900-01-01 00:00:00'
 
     ITM_ITEM_DEAL_PROP = []
     if segment_status == 'active':
-        if item_data['total'] > 0:
-            for item in item_data['data']:
+        if len(all_item_data) > 0:
+            for item in all_item_data:
                 ITM_ITEM_DEAL_PROP.append({
                     **segment_mapping["ITM_ITEM_DEAL_PROP"],
                     "item_id": item.item_id,
                     "effective_date": begin_date,
                     "itm_deal_property_code": f"ITM_PROP_{segment_id}"
                 })
+
     data_detail.append(
         {'table': 'ITM_ITEM_DEAL_PROP', 'table_key': ['organization_id', 'itm_deal_property_code'],
          "action": "DELETE_AND_INSERT",
          "data": ITM_ITEM_DEAL_PROP})
+
     return data_detail
 
 

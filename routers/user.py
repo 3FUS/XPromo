@@ -20,7 +20,7 @@ async def get_user_list(key_word: str = None, pageNo: int = 1, pageSize: int = 2
         return {"code": 200, "msg": "get user list successfully",
                 "data": await fetch_user_list(session, key_word, pageNo, pageSize)}
     except Exception as e:
-        return {"code": 301, "msg": f"获取角色列表失败{repr(e)}"}
+        return {"code": 301, "msg": f"获取用户列表失败{repr(e)}"}
 
 
 @router.get("/user/role_list", tags=["user"], description='获取角色列表')

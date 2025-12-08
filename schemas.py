@@ -92,8 +92,8 @@ class Promotions(BaseModel):
     description: str
     promotion_type: Promotion_Type
     promotion_status: str = "active"
-    class_id: int
-    subclass_id: Optional[int] = Field(None)
+    class_id: str
+    subclass_id: Optional[str] = Field(None)
     iteration_cap: Optional[int] = -1
     promotion_group: Optional[int] = Field(None)
     promotion_level: Optional[int] = Field(None)
@@ -136,7 +136,7 @@ class PromotionResult(BaseModel):
     apply_type: str
     discount_type: str
     action_qty: Optional[int] = 0
-    discount_value: Union[float, int]
+    discount_value: Optional[Union[float, int]] = None
 
 
 class PromotionSubmit(BaseModel):
@@ -160,6 +160,22 @@ class PromotionSubmit(BaseModel):
         return self
 
 
+class PromotionSubmit_v1(BaseModel):
+    promotion: Promotions
+    promotion_location_segments: Optional[List[PromotionLocationSegments]] = None
+    promotion_org_data: Optional[List[str]] = None
+    promotion_customer_segments: Optional[List[PromotionCustomersSegments]]
+
+    @model_validator(mode='after')
+    def check_location_or_org_data(self):
+        location_segments = self.promotion_location_segments
+        org_data = self.promotion_org_data
+
+        # 检查两个字段是否都为空或 None
+        if not location_segments and not org_data:
+            raise ValueError("Either 'promotion_location_segments' or 'promotion_org_data' must be provided.")
+
+
 class SysUserRole(BaseModel):
     role_code: str
 
@@ -167,7 +183,7 @@ class SysUserRole(BaseModel):
 class SysUserSubmit(BaseModel):
     user_code: str
     user_name: str
-    user_password: str
+    user_password: Optional[str] = Field(None)
     user_status: str = "active"
     role_code: Optional[List[SysUserRole]]
     user_email: Optional[str] = Field(None)
