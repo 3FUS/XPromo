@@ -37,7 +37,7 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
         app_logger.warning("Invalid timestamp format")
         return False
 
-    # 验证时间戳有效性（防止重放攻击，允许5分钟偏差）
+    #
     current_time = int(time.time())
     app_logger.debug(f"Current timestamp: {current_time}")
     if abs(current_time - request_time) > 300:  # 5分钟
@@ -116,7 +116,13 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
         data_type = worker_next_task.data_type
 
         if data_type == 'promotion':
-            data_detail = await process_promotion_data(data_key, session, location_id)
+            try:
+                data_detail = await process_promotion_data(data_key, session, location_id)
+            except Exception as e:
+                data_detail = []
+                await update_worker_task(session, location_id, terminal_id, session_id, 'E',
+                                         f"Error in Process promotion Data {str(e)}")
+                app_logger.error(f"Error in process_promotion_data: {str(e)}", exc_info=True)
         elif data_type == 'segment_item':
             data_detail = await process_segment_data(data_key, session)
         else:
@@ -132,7 +138,7 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
         return task_data
     except Exception as e:
         app_logger.error(f"Error in get_task_data: {str(e)}", exc_info=True)
-        return APIResponse(code=500, msg="Internal server error")
+        return {"code": 500, "msg": str(e)}
 
 
 @router.post("/worker_api/call_back", dependencies=[Depends(verify_header_signature)])

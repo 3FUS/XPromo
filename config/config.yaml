@@ -1,163 +1,3 @@
-promotion_class:
-  - code: "Discount"
-    description: "Discount applied at line item or transaction level"
-    class_id: 1
-  - code: "Fixed Quantity/Price"
-    description: "A certain discount or special price associated with a certain set of items, when purchased together"
-    class_id: 2
-  - code: "Gift with Purchase"
-    description: "A gift is provided to the customer when they purchase certain, defined item(s)"
-    class_id: 3
-  - code: "Buy X Get Y"
-    description: "The purchase of a certain, defined item allows the customer to receive a different item at no cost ora discount"
-    class_id: 4
-
-promotion_template:
-  - subclass_id: 1
-    code: "Spend X$ or more, get Y$ off"
-    description: "Discount amount is applied to the subtotal of a transaction"
-    class_id: 1
-  - subclass_id: 2
-    code: "Spend X$ or more, get Y% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 1
-  - subclass_id: 3
-    code: "Purchase X item(s) or more, get Y% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 1
-  - subclass_id: 4
-    code: "Purchase every X item(s), get Y% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 1
-  - subclass_id: 5
-    code: "Purchase X item(s) or more, get Y$ off"
-    description: "Discount amount is applied to the subtotal of a transaction"
-    class_id: 1
-  - subclass_id: 6
-    code: "Purchase every X item(s), get Y$ off"
-    description: "Discount amount is applied to the subtotal of a transaction"
-    class_id: 1
-  - subclass_id: 1
-    code: "Purchase every X item(s) fixed price Y$"
-    description: "Discount percentage is applied to the line items"
-    class_id: 2
-  - subclass_id: 2
-    code: "Purchase A and get every X item(s) fixed price Y$"
-    description: "Discount percentage is applied to the line items"
-    class_id: 2
-  - subclass_id: 3
-    code: "Purchase X$ or more, fixed price Y$"
-    description: "Discount percentage is applied to the line items"
-    class_id: 2
-  - subclass_id: 4
-    code: "Purchase X item(s), fixed price Y$"
-    description: "Discount percentage is applied to the line items"
-    class_id: 2
-  - subclass_id: 5
-    code: "Purchase A + B + C items, fixed price Y$"
-    description: "Discount percentage is applied to the line items"
-    class_id: 2
-  - subclass_id: 1
-    code: "Purchase every X item(s) get Y item(s) free"
-    description: "Free items is applied to the line items"
-    class_id: 3
-  - subclass_id: 2
-    code: "Purchase X item(s) or more, get Y item(s) free"
-    description: "Free items is applied to the line items"
-    class_id: 3
-  - subclass_id: 3
-    code: "Purchase X$ or more, get Y item(s) free"
-    description: "Free items is applied to the line items"
-    class_id: 3
-  - subclass_id: 4
-    code: "Purchase X item(s) and Y item(s), get Z item(s) free"
-    description: "Free items is applied to the line items"
-    class_id: 3
-  - subclass_id: 1
-    code: "Purchase every X item(s) get Y% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 4
-  - subclass_id: 2
-    code: "Purchase X item(s) or more, get Y% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 4
-  - subclass_id: 3
-    code: "Purchase A item(s) and B item(s), get Z% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 4
-    #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
-  - subclass_id: 4
-    code: "Purchase A item(s) , B item(s) and C item(s), get Z% off"
-    description: "Discount percentage is applied to the line items"
-    class_id: 4
-
-promotion_template_default_p:
-  1: { 0: { 'result':[{'discount_type': 'PERCENT_OFF'}],'item_set':1},
-       1: { 'header':{'iteration_cap':1},
-            'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
-            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
-            'item_set':1},
-       2: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
-            'item_set':1},
-       3: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
-            'item_set':1},
-       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','action_qty':''}],
-            'item_set':1},
-       5: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
-            'item_set':1},
-       6: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
-            'result':[{'apply_type': 'Transaction','discount_type':'CURRENCY_OFF','action_qty':''}],
-            'item_set':1}
-     }
-  2: { 0: { 'result':[{'discount_type': 'NEW_PRICE'}] ,'item_set':1},
-       1: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
-            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
-            'item_set':1},
-       2: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
-            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
-            'item_set':2},
-       3: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
-            'item_set':2},
-       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
-            'item_set':2},
-      #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
-       5: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'NEW_PRICE'}],
-            'item_set':2}
-     }
-  3: { 0: { 'result':[{'discount_type':'PERCENT_OFF'}],'item_set':2},
-       1: { 'condition':[{'condition_type': 'Quantity','threshold_style':'Every Quantity'}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
-            'item_set':2},
-       2: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
-            'item_set':2},
-       3: { 'condition':[{'condition_type': 'Amount','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
-            'item_set':2},
-       4: { 'condition':[{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF','discount_value':'100'}],
-            'item_set':2}
-     }
-  4: { 0: { 'result':[{'discount_type':'PERCENT_OFF'}],'item_set':2},
-       1: { 'condition': [ { 'condition_type': 'Quantity','threshold_style': 'Every Quantity' }],
-            'result': [ { 'apply_type': 'Line','discount_type': 'PERCENT_OFF' } ],'item_set': 2 },
-       2: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2},
-       3: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2},
-        #PROMOX-114 PromoX-新增固定搭配 items 的 Fixed price的促销类型
-       4: { 'condition': [{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='},{'condition_type': 'Quantity','threshold_style':'>='}],
-            'result':[{'apply_type': 'Line','discount_type':'PERCENT_OFF'}],'item_set':2}
-     }
-
-
 promotion_condition:
   - condition_name : "Condition Type"
     value_type: "LIST"
@@ -175,8 +15,6 @@ promotion_condition:
     value_type: "number"
 
 promotion_result:
-  - result_name: "Discount Overlap"
-    value_type: "CheckBox"
   - result_name: "Apply Type"
     value_type: "LIST"
     condition_value: [ "Transaction", "Line" ]
@@ -187,6 +25,8 @@ promotion_result:
     condition_value: [ "PERCENT_OFF", "CURRENCY_OFF" ,"NEW_PRICE"]
   - result_name: "Discount Value"
     value_type: "number"
+  - result_name: "Discount Overlap"
+    value_type: "CheckBox"
 
 promotion_level:
   - level_code: ""
@@ -234,12 +74,11 @@ customer_column:
 SECRET_KEY:
   "65ec98c51c998e1f4bbdb90b2abf16e63d124087df4f93898da50ebd708f6f1a"
 
+WORKER_KEY: "64afbfe1cb2245818251bc8f8e08aa90"
 
 Export_Type: "WORKER" # MNT, WORKER
 
 MNT_PATH: './mnt'
-
-SERVER_PORT: 8000
 
 PROMOTION_TABLES:
   PRC_DEAL_TRIG: "PRC_DEAL_TRIGGER"
