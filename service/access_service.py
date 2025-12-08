@@ -1,3 +1,6 @@
+from sqlalchemy import func
+from sqlalchemy import func, literal, TypeDecorator
+from sqlalchemy.types import CHAR, String
 from models.model import SysMenu, SysRole, SysUser, SysUserRole, SysRoleMenuPermission, SysMenuPermission, \
     LOC_ORG_HIERARCHY, SysRoleOrgPermission
 
@@ -6,12 +9,31 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from service.utils import resolve_permissions_with_inheritance
 
+from utils.logger import app_logger
+
+
+class FixedChar(TypeDecorator):
+    impl = CHAR
+
+    def __init__(self, length=1):
+        self.length = length
+        super().__init__(length=length)
+
+
 async def verify_password(session: Session, user_code: str, user_password: str) -> bool:
     result = session.query(SysUser.user_password).filter(SysUser.user_code == user_code).first()
     if not result:
         return False
     hashed_password = result[0]
     return bcrypt.checkpw(user_password.encode('utf-8'), hashed_password.encode('utf-8'))
+
+
+async def get_sys_user_configuration(session: Session, user_code: str) -> dict:
+    result = session.query(SysUser.configuration, SysUser.user_name, SysUser.user_code).filter(
+        SysUser.user_code == user_code).first()
+    if not result:
+        return {"configuration": 0, "user_name": ""}
+    return {"configuration": result[0], "user_name": result[1], "user_code": result[2]}
 
 
 async def create_sys_user(session: Session, User):
@@ -79,29 +101,75 @@ async def delete_role_by_code(session: Session, role_code: str):
 
 
 async def fetch_user_list(session: Session, key_word: str, pageNo: int = 1, pageSize: int = 20):
-    query = session.query(SysUser)
-    if key_word:
-        key_word = f"%{key_word}%"
-        query = query.filter(
-            (SysUser.user_code.like(key_word)) |
-            (SysUser.user_name.like(key_word))
+    try:
+        app_logger.info(
+            f"Starting to fetch user list with parameters: key_word={key_word}, pageNo={pageNo}, pageSize={pageSize}")
+
+        query = session.query(
+            SysUser.user_code,
+            SysUser.user_name,
+            func.string_agg(SysUserRole.role_code, literal(',', type_=FixedChar(1))).label('role_codes'),
+            SysUser.user_email,
+            SysUser.create_time,
+            SysUser.user_status
+        ).outerjoin(SysUserRole, SysUser.user_code == SysUserRole.user_code)
+
+        # 添加关键词搜索条件
+        if key_word:
+            key_word = f"%{key_word}%"
+            query = query.filter(
+                (SysUser.user_code.like(key_word)) |
+                (SysUser.user_name.like(key_word))
+            )
+
+        # 按用户字段分组
+        query = query.group_by(
+            SysUser.user_code,
+            SysUser.user_name,
+            SysUser.user_email,
+            SysUser.create_time,
+            SysUser.user_status
         )
-    query = query.order_by(SysUser.create_time.desc())
-    total = query.count()
-    items = query.offset((pageNo - 1) * pageSize).limit(pageSize).all()
-    formatted_items = [
-        {
-            **item.__dict__,
-            'create_time': item.create_time.strftime('%Y-%m-%d %H:%M') if item.create_time else None
+
+        # 排序和分页
+        query = query.order_by(SysUser.create_time.desc())
+        total = query.count()
+        app_logger.debug(f"Total users matching criteria: {total}")
+
+        items = query.offset((pageNo - 1) * pageSize).limit(pageSize).all()
+        app_logger.debug(f"Retrieved {len(items)} users for page {pageNo}")
+
+        formatted_items = []
+        for item in items:
+            try:
+                # 使用 _asdict() 方法而不是 __dict__，适用于 SQLAlchemy 查询结果
+                item_dict = item._asdict() if hasattr(item, '_asdict') else vars(item)
+
+                # 处理 create_time 字段
+                create_time = item_dict.get('create_time')
+                formatted_item = {
+                    **item_dict,
+                    'create_time': create_time.strftime('%Y-%m-%d %H:%M') if create_time else None
+                }
+                formatted_items.append(formatted_item)
+            except Exception as item_error:
+                app_logger.warning(f"Error processing item: {str(item_error)}, item: {repr(item)}")
+                # 即使单个项目出错也要继续处理其他项目
+                continue
+
+        result = {
+            "total": total,
+            "page": pageNo,
+            "page_size": pageSize,
+            "data": formatted_items
         }
-        for item in items
-    ]
-    return {
-        "total": total,
-        "page": pageNo,
-        "page_size": pageSize,
-        "data": formatted_items
-    }
+
+        app_logger.info(f"Successfully fetched user list, returning {len(formatted_items)} items")
+        return result
+
+    except Exception as e:
+        app_logger.error(f"Error occurred while fetching user list: {str(e)}", exc_info=True)
+        raise Exception(f"Failed to fetch user list: {str(e)}")
 
 
 async def get_user_by_code(session: Session, user_code: str):
@@ -112,9 +180,9 @@ async def get_user_by_code(session: Session, user_code: str):
 async def update_sys_user(session: Session, user_code: str, User):
     updated_user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
     if updated_user:
-        # if User.user_password:
-        #     hashed_password = bcrypt.hashpw(User.user_password.encode('utf-8'), bcrypt.gensalt())
-        #     updated_user.user_password = hashed_password.decode('utf-8')
+        if User.user_password:
+            hashed_password = bcrypt.hashpw(User.user_password.encode('utf-8'), bcrypt.gensalt())
+            updated_user.user_password = hashed_password.decode('utf-8')
         updated_user.user_name = User.user_name
         updated_user.user_email = User.user_email
         updated_user.user_status = User.user_status
@@ -139,28 +207,70 @@ async def create_sys_role(session: Session, role):
     return new_role
 
 
-async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 0, pageSize: int = 20):
-    query = session.query(SysRole)
-    key_word = f"%{key_word}%"
-    query = query.filter(
-        (SysRole.role_code.like(key_word)) |
-        (SysRole.role_description.like(key_word))
-    )
-    query = query.order_by(SysRole.create_time.desc())
-    total = query.count()
-    items = query.offset((pageNo - 1) * pageSize).limit(pageSize).all()
-    formatted_items = [
-        {
-            **item.__dict__,
-            'create_time': item.create_time.strftime('%Y-%m-%d %H:%M') if item.create_time else None
+async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1, pageSize: int = 20):
+    try:
+        app_logger.info(
+            f"Starting to fetch role list with parameters: key_word={key_word}, pageNo={pageNo}, pageSize={pageSize}")
+
+        # 使用提供的SQL逻辑进行查询
+        query = session.query(
+            SysRole.role_code,
+            SysRole.role_description,
+            SysRole.role_status,
+            SysRole.create_time,
+            func.count(SysUserRole.user_code).label('user_count')
+        ).outerjoin(SysUserRole, SysRole.role_code == SysUserRole.role_code) \
+            .group_by(
+            SysRole.role_code,
+            SysRole.role_description,
+            SysRole.role_status,
+            SysRole.create_time
+        )
+
+        # 添加关键词搜索条件
+        if key_word:
+            key_word = f"%{key_word}%"
+            query = query.filter(
+                (SysRole.role_code.like(key_word)) |
+                (SysRole.role_description.like(key_word))
+            )
+
+        # 排序和分页
+        query = query.order_by(SysRole.create_time.desc())
+        total = query.count()
+        app_logger.debug(f"Total roles matching criteria: {total}")
+
+        items = query.offset((pageNo - 1) * pageSize).limit(pageSize).all()
+        app_logger.debug(f"Retrieved {len(items)} roles for page {pageNo}")
+
+        # 格式化结果
+        formatted_items = []
+        for item in items:
+            try:
+                item_dict = item._asdict() if hasattr(item, '_asdict') else vars(item)
+                create_time = item_dict.get('create_time')
+                formatted_item = {
+                    **item_dict,
+                    'create_time': create_time.strftime('%Y-%m-%d %H:%M') if create_time else None
+                }
+                formatted_items.append(formatted_item)
+            except Exception as item_error:
+                app_logger.warning(f"Error processing item: {str(item_error)}, item: {repr(item)}")
+                continue
+
+        result = {
+            "total": total,
+            "page": pageNo,
+            "page_size": pageSize,
+            "data": formatted_items
         }
-        for item in items
-    ]
-    return {
-        "total": total,
-        "page": pageNo,
-        "data": formatted_items
-    }
+
+        app_logger.info(f"Successfully fetched role list, returning {len(formatted_items)} items")
+        return result
+
+    except Exception as e:
+        app_logger.error(f"Error occurred while fetching role list: {str(e)}", exc_info=True)
+        raise Exception(f"Failed to fetch role list: {str(e)}")
 
 
 async def get_role_by_code(session: Session, role_code: str):
@@ -442,7 +552,6 @@ class OrgNode:
 
 
 def build_generic_tree(all_nodes, node_factory=None):
-
     if node_factory is None:
         def default_node_factory(org_code, org_value):
             return {
@@ -486,7 +595,6 @@ def build_generic_tree(all_nodes, node_factory=None):
 
 
 def mark_permissions_downward(node, permissions):
-
     key = (node.org_code, node.org_value)
     node.has_permission = key in permissions
 
@@ -499,7 +607,6 @@ def mark_permissions_downward(node, permissions):
 
 
 def convert_to_tree_data_with_permission(nodes):
-
     def recursive_convert(node):
         node_title = f"{node.org_code}:{node.org_value}"
         node_value = f"{node.org_code}:{node.org_value}"
@@ -521,6 +628,7 @@ def convert_to_tree_data_with_permission(nodes):
         tree_data.append(recursive_convert(root))
     return tree_data
 
+
 def filter_permission_nodes(node):
     if not hasattr(node, 'children') or not node.children:
         return node.has_permission
@@ -533,8 +641,8 @@ def filter_permission_nodes(node):
     # 如果当前节点自身有权限或包含有效子节点，则保留该节点
     return node.has_permission or len(valid_children) > 0
 
-async def get_max_permission_nodes(session: Session, role_code: str):
 
+async def get_max_permission_nodes(session: Session, role_code: str):
     permission_strings = await get_org_permissions_with_role(session, role_code)
 
     raw_permissions = {
