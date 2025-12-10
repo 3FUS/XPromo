@@ -45,8 +45,11 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     #     return False
 
     # 排除 signature 字段后排序参数 key 并拼接成字符串
-    sorted_params = sorted((k.lower(), v) for k, v in headers.items()
-                           if k.lower() in ["x-timestamp", "location_id", "terminal_id"])
+    allowed_keys = ["x-timestamp", "location_id", "terminal_id"]
+    sorted_params = sorted(
+        (k.lower(), v) for k, v in headers.items()
+        if k.lower() in allowed_keys
+    )
     param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
     app_logger.info(f"Parameters string for signature: {param_str}")
 
@@ -63,7 +66,7 @@ async def verify_header_signature(request: Request):
     """
     从请求头中提取参数并进行验签
     """
-    app_logger.info(f"Verifying header request body: {request}")
+    app_logger.info(f"Verifying header request body: {dict(request).items()}")
     headers = {k.lower(): v for k, v in dict(request.headers).items()}
 
     logged_headers = {k: v for k, v in headers.items()
