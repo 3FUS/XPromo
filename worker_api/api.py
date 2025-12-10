@@ -38,11 +38,11 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
         return False
 
     #
-    current_time = int(time.time())
-    app_logger.debug(f"Current timestamp: {current_time}")
-    if abs(current_time - request_time) > 300:  # 5分钟
-        app_logger.warning("Timestamp out of valid range")
-        return False
+    # current_time = int(time.time())
+    # app_logger.debug(f"Current timestamp: {current_time}")
+    # if abs(current_time - request_time) > 300:  # 5分钟
+    #     app_logger.warning("Timestamp out of valid range")
+    #     return False
 
     # 排除 signature 字段后排序参数 key 并拼接成字符串
     sorted_params = sorted((k.lower(), v) for k, v in headers.items()
@@ -69,11 +69,11 @@ async def verify_header_signature(request: Request):
                       if k.lower() not in ["authorization"]}
     app_logger.info(f"Verifying header signature with headers: {logged_headers}")
 
-    secret_key = "5faa8e3b095f41480cab2f4b6b70d0cd"  # 建议从配置文件读取
+    secret_key = "5faa8e3b095f41480cab2f4b6b70d0cd"
 
     if not verify_signature(headers, secret_key):
         app_logger.error("Header signature verification failed")
-        raise HTTPException(status_code=400, detail="验签失败")
+        raise HTTPException(status_code=400, detail="signature verification failed")
 
 
 @router.get("/worker_api/get_promotion_by_phone", dependencies=[Depends(verify_header_signature)])
@@ -104,7 +104,7 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
     """
 
     try:
-
+        app_logger.info(f"Getting task data for location_id: {location_id}, terminal_id: {terminal_id}")
         worker_next_task = await get_worker_next_task(session, location_id, terminal_id)
         if worker_next_task is None:
             return {
@@ -135,6 +135,7 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
             "data_detail": data_detail
         }
 
+        app_logger.info(f"Returning task data: {task_data}")
         return task_data
     except Exception as e:
         app_logger.error(f"Error in get_task_data: {str(e)}", exc_info=True)
