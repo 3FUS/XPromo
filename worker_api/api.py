@@ -32,7 +32,7 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     # 验证时间戳是否为有效数字
     try:
         request_time = int(timestamp)
-        app_logger.debug(f"Request timestamp: {request_time}")
+        app_logger.info(f"Request timestamp: {request_time}")
     except ValueError:
         app_logger.warning("Invalid timestamp format")
         return False
@@ -48,7 +48,7 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     sorted_params = sorted((k.lower(), v) for k, v in headers.items()
                            if k.lower() in ["x-timestamp", "location_id", "terminal_id"])
     param_str = "&".join([f"{k}={v}" for k, v in sorted_params])
-    app_logger.debug(f"Parameters string for signature: {param_str}")
+    app_logger.info(f"Parameters string for signature: {param_str}")
 
     expected_sign = hmac.new(
         secret_key.encode("utf-8"),
@@ -63,6 +63,7 @@ async def verify_header_signature(request: Request):
     """
     从请求头中提取参数并进行验签
     """
+    app_logger.info(f"Verifying header request body: {request}")
     headers = {k.lower(): v for k, v in dict(request.headers).items()}
 
     logged_headers = {k: v for k, v in headers.items()
