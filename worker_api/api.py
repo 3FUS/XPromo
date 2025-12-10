@@ -44,7 +44,6 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     #     app_logger.warning("Timestamp out of valid range")
     #     return False
 
-    # 排除 signature 字段后排序参数 key 并拼接成字符串
     allowed_keys = ["x-timestamp", "location_id", "terminal_id"]
     sorted_params = sorted(
         (k.lower(), v) for k, v in headers.items()
@@ -58,7 +57,7 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
         param_str.encode("utf-8"),
         hashlib.sha256
     ).hexdigest()
-
+    app_logger.info(f"Expected signature: {expected_sign}")
     return hmac.compare_digest(signature, expected_sign)
 
 
