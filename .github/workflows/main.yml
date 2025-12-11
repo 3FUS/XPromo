@@ -55,7 +55,7 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          python -m PyInstaller --onefile --hidden-import=pyodbc --name PromoX main.py
+          python -m PyInstaller --onefile --hidden-import=pyodbc --hidden-import=aioodbc --name PromoX main.py
 
       - name: Prepare config files
         run: |
