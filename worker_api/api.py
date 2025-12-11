@@ -40,7 +40,7 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     #
     # current_time = int(time.time())
     # app_logger.debug(f"Current timestamp: {current_time}")
-    # if abs(current_time - request_time) > 300:  # 5分钟
+    # if abs(current_time - request_time) > 300:
     #     app_logger.warning("Timestamp out of valid range")
     #     return False
 
@@ -79,8 +79,8 @@ async def verify_header_signature(request: Request):
         app_logger.error("Header signature verification failed")
         raise HTTPException(status_code=400, detail="signature verification failed")
 
-
-@router.get("/worker_api/get_promotion_by_phone", dependencies=[Depends(verify_header_signature)])
+# dependencies=[Depends(verify_header_signature)]
+@router.get("/worker_api/get_promotion_by_phone")
 async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
     try:
         promotion_data = await get_segments_by_phone(session, phone_number)
@@ -97,7 +97,7 @@ async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
         }
 
 
-@router.get("/worker_api/get_data", dependencies=[Depends(verify_header_signature)])
+@router.get("/worker_api/get_data")
 async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_db)):
     """
     获取任务（带 Header 验签）
@@ -146,7 +146,7 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
         return {"code": 500, "msg": str(e)}
 
 
-@router.post("/worker_api/call_back", dependencies=[Depends(verify_header_signature)])
+@router.post("/worker_api/call_back")
 async def call_back(data: WorkerCallBack, session=Depends(get_db)):
     """
      获取任务（带 Header 验签）
