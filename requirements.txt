@@ -17,3 +17,4 @@ pytz~=2024.1
 xlsxwriter~=3.2.3
 starlette~=0.38.2
 paramiko~=3.5.0
+aioodbc~=0.5.0
