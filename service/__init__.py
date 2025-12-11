@@ -92,57 +92,57 @@ def get_engine():
         app_logger.exception("Failed to create database engine.")
         raise
 
+#
+# from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+#
+#
+# def get_async_engine():
+#     from config.database_config import DATABASES, DB_TYPE
+#     db_config = DATABASES.get(DB_TYPE)
+#
+#     if not db_config:
+#         app_logger.error(f"Database configuration for {DB_TYPE} not found.")
+#         raise ValueError(f"Database configuration for {DB_TYPE} not found.")
+#
+#     try:
+#         pool_size = db_config.get("pool_size", 100)
+#         max_overflow = db_config.get("max_overflow", 200)
+#         pool_recycle = db_config.get("pool_recycle", 300)
+#         pool_pre_ping = db_config.get("pool_pre_ping", True)
+#         pool_timeout = db_config.get("pool_timeout", 30)
+#
+#         engine = create_async_engine(
+#             f'mssql+aioodbc://{db_config["user"]}:{db_config["password"]}'
+#             f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
+#             f'?driver=ODBC+Driver+17+for+SQL+Server'
+#             f'&TrustServerCertificate=yes',
+#             pool_size=pool_size,
+#             max_overflow=max_overflow,
+#             pool_recycle=pool_recycle,
+#             pool_pre_ping=pool_pre_ping,
+#             pool_timeout=pool_timeout
+#         )
+#
+#         return engine
+#     except Exception as e:
+#         print(f"Error creating database engine: {str(e)}")
+#         app_logger.exception("Failed to create database engine.")
+#         raise
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-
-
-def get_async_engine():
-    from config.database_config import DATABASES, DB_TYPE
-    db_config = DATABASES.get(DB_TYPE)
-
-    if not db_config:
-        app_logger.error(f"Database configuration for {DB_TYPE} not found.")
-        raise ValueError(f"Database configuration for {DB_TYPE} not found.")
-
-    try:
-        pool_size = db_config.get("pool_size", 100)
-        max_overflow = db_config.get("max_overflow", 200)
-        pool_recycle = db_config.get("pool_recycle", 300)
-        pool_pre_ping = db_config.get("pool_pre_ping", True)
-        pool_timeout = db_config.get("pool_timeout", 30)
-
-        engine = create_async_engine(
-            f'mssql+aioodbc://{db_config["user"]}:{db_config["password"]}'
-            f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
-            f'?driver=ODBC+Driver+17+for+SQL+Server'
-            f'&TrustServerCertificate=yes',
-            pool_size=pool_size,
-            max_overflow=max_overflow,
-            pool_recycle=pool_recycle,
-            pool_pre_ping=pool_pre_ping,
-            pool_timeout=pool_timeout
-        )
-
-        return engine
-    except Exception as e:
-        print(f"Error creating database engine: {str(e)}")
-        app_logger.exception("Failed to create database engine.")
-        raise
-
-
-AsyncSessionLocal = sessionmaker(
-    bind=get_async_engine(),
-    class_=AsyncSession,
-    expire_on_commit=False
-)
-
-
-async def get_AsyncDb():
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+#
+# AsyncSessionLocal = sessionmaker(
+#     bind=get_async_engine(),
+#     class_=AsyncSession,
+#     expire_on_commit=False
+# )
+#
+#
+# async def get_AsyncDb():
+#     async with AsyncSessionLocal() as session:
+#         try:
+#             yield session
+#         finally:
+#             await session.close()
 
 
 def create_session():
