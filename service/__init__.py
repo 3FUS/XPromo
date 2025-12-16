@@ -8,8 +8,8 @@ from utils.logger import app_logger
 import os
 import sys
 
-def get_engine():
 
+def get_engine():
     if getattr(sys, 'frozen', False):
         # 如果是打包后的exe，从exe所在目录加载配置
         config_path = os.path.join(os.path.dirname(sys.executable), 'config', 'database_config.py')
@@ -51,18 +51,28 @@ def get_engine():
             trust_cert = db_config.get('trust_server_certificate', True)
             encrypt = db_config.get('encrypt', 'yes')
 
-            engine = create_engine(
+            connection_string = (
                 f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
                 f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
                 f'?driver=ODBC+Driver+17+for+SQL+Server'
                 f'&Encrypt={encrypt}'
-                f'&TrustServerCertificate={"yes" if trust_cert else "no"}',
+                f'&TrustServerCertificate={"yes" if trust_cert else "no"}'
+            )
+
+            app_logger.info(f"Creating SQL Server engine with host: {db_config['host']}, port: {db_config['port']}")
+            app_logger.info(f"Connection string (without credentials): mssql+pyodbc://"
+                            f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
+                            f"?driver=ODBC+Driver+17+for+SQL+Server")
+
+            engine = create_engine(
+                connection_string,
                 poolclass=QueuePool,
                 pool_size=pool_size,
                 max_overflow=max_overflow,
                 pool_recycle=pool_recycle,
                 pool_pre_ping=True)
 
+            app_logger.info("SQL Server database engine created successfully.")
             return engine
         elif DB_TYPE == 'mysql':
             db_url = URL.create(
@@ -91,6 +101,7 @@ def get_engine():
         print(f"Error creating database engine: {str(e)}")
         app_logger.exception("Failed to create database engine.")
         raise
+
 
 #
 # from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession

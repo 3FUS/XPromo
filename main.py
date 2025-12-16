@@ -55,9 +55,9 @@ from service.promotion import create_promotion, create_promotion_condition, crea
     update_promotion_result, update_promotion_status, update_promotion_condition, get_promotion_location_detail_by_id, \
     update_promotion_export_time, delete_promotion, create_promotion_org_data, get_promotion_org_join_by_id, \
     get_promotion_location_detail_by_id_v2, process_promotion_data, delete_promotion_condition, delete_promotion_result, \
-    delete_promotion_import, get_promotion_import_by_id
+    delete_promotion_import, get_promotion_import_by_id, get_promotion_location_detail_by_id_v3
 
-from service.worker import create_worker_task
+from service.worker import create_worker_task, create_termination_task
 from service.access_service import verify_password, get_sys_user_configuration
 from utils.segment_etl import run_segment_cleaning
 from service import get_db
@@ -191,29 +191,60 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token(
         data={"sub": user['user_code']}, expires_delta=access_token_expires
     )
-    return {"code": 200, "access_token": access_token, "token_type": "bearer", "configuration": user['configuration'], "user_code": user['user_code'], "user_name": user['username']}
+    return {"code": 200, "access_token": access_token, "token_type": "bearer", "configuration": user['configuration'],
+            "user_code": user['user_code'], "user_name": user['username']}
 
 
 async def authenticate_user(username: str, password: str, session):
     if await verify_password(session, username, password):
         user_info = await get_sys_user_configuration(session, username)
-        return {"user_code": user_info['user_code'],"username": user_info['user_name'], "configuration": user_info['configuration']}
+        return {"user_code": user_info['user_code'], "username": user_info['user_name'],
+                "configuration": user_info['configuration']}
     return None
 
 
 async def get_location_detail_by_promotionId(promotion_id: int, session=Depends(get_db)) -> dict:
-    res_location = await get_promotion_location_detail_by_id(session, promotion_id)
-    df_locs = pd.DataFrame(res_location)
-    if df_locs.empty:
-        res_location = await get_promotion_location_detail_by_id_v2(session, promotion_id)
-        df_locs = pd.DataFrame(res_location)
-        data_type = "hierarchy"
-    else:
-        excluded_locs = df_locs[df_locs['include'] == 0]['rtl_loc_id'].unique()
-        data_type = "segment"
 
-        df_locs = df_locs[~df_locs['rtl_loc_id'].isin(excluded_locs)]
-    return {"data": df_locs, "data_type": data_type}
+    app_logger.info(f"[get_location_detail_by_promotionId] 开始获取促销位置详情, promotion_id: {promotion_id}")
+
+    try:
+        # 获取促销位置详情
+        res_location = await get_promotion_location_detail_by_id(session, promotion_id)
+
+        df_locs = pd.DataFrame(res_location)
+
+        if df_locs.empty:
+            app_logger.info(f"[get_location_detail_by_promotionId], promotion_id: {promotion_id}")
+            res_location = await get_promotion_location_detail_by_id_v2(session, promotion_id)
+            df_locs = pd.DataFrame(res_location)
+            data_type = "hierarchy"
+
+        else:
+            excluded_locs = df_locs[df_locs['include'] == 0]['rtl_loc_id'].unique()
+            data_type = "segment"
+            df_locs = df_locs[~df_locs['rtl_loc_id'].isin(excluded_locs)]
+
+        app_logger.info(f"[get_location_detail_by_promotionId], df_locs: {df_locs}")
+
+        bef_locs = await get_promotion_location_detail_by_id_v3(session, promotion_id)
+        de_bef_locs = pd.DataFrame(bef_locs)
+
+        app_logger.info(f"[get_location_detail_by_promotionId], de_bef_locs: {de_bef_locs}")
+
+        if df_locs.empty:
+            termination_locs = de_bef_locs
+        elif not de_bef_locs.empty:
+            termination_locs = de_bef_locs[~de_bef_locs['rtl_loc_id'].isin(df_locs['rtl_loc_id'].unique())]
+        else:
+            termination_locs = pd.DataFrame()
+        app_logger.info(f"[get_location_detail_by_promotionId], termination_locs: {termination_locs}")
+
+        return {"data": df_locs, "data_type": data_type, "termination_locs": termination_locs}
+
+    except Exception as e:
+        app_logger.error(f"[get_location_detail_by_promotionId] 处理过程中发生错误, promotion_id: {promotion_id}, 错误: {str(e)}",
+                         exc_info=True)
+        return {"data": pd.DataFrame(), "data_type": "unknown", "termination_locs": pd.DataFrame()}
 
 
 @app.get("/promotion_api/segments_condition")
@@ -386,6 +417,10 @@ async def export_promotion(promotion_id: int, session=Depends(get_db), user_id=D
                 await update_segment_some(Segment_Type.item.value, session, segment['segment_id'],
                                           {"last_session_id": sessionId, "export_time": datetime.now()})
             sessionId = await create_worker_task(session, df_locs['rtl_loc_id'].tolist(), 'promotion', promotion_id)
+            df_termination_locs = locs_data['termination_locs']
+            if not df_termination_locs.empty:
+                sessionId = await create_termination_task(session, df_termination_locs['rtl_loc_id'].tolist(), 'promotion',
+                                                          promotion_id)
             await update_promotion_export_time(session, promotion_id, export_date, sessionId)
         return {"code": 200, "msg": get_message("export_tag_success")}
     except Exception as e:
@@ -1448,7 +1483,6 @@ async def read_promotion_dashboard(
     except Exception as e:
         app_logger.error(f"promotion_dashboard: {repr(e)}")
         return {'code': 301, "msg": str(e)}
-
 
 # # # # #
 if __name__ == '__main__':

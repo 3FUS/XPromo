@@ -62,6 +62,7 @@ class PromotionResult(Base):
     discount_type = Column(String(30))
     action_qty = Column(Integer)
     discount_value = Column(DECIMAL(12, 2))
+    is_active = Column(Integer, default=1, comment="状态，1表示开启，0表示关闭")
     create_time = Column(DATETIME)
     create_user = Column(String(30))
 
@@ -313,6 +314,7 @@ class WorkerTask(Base):
     status = Column(String(30))
     retry_count = Column(Integer, default=0)
     msg = Column(Text)
+    termination = Column(Integer, default=0)
     create_time = Column(DATETIME)
     create_user = Column(String(30))
     update_time = Column(DATETIME)

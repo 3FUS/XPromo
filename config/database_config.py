@@ -11,7 +11,9 @@ DATABASES = {
         'port': 1433,
         'user': 'sa',
         'password': 'Xstore123',
-        'database': 'xcenter'
+        'database': 'xcenter',
+        'trust_server_certificate': True,
+        'encrypt': 'yes'
     },
     'mysql': {
         'host': 'localhost',

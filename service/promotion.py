@@ -188,7 +188,8 @@ async def create_promotion_result(session: Session, promotion_id: int, promotion
                 apply_type=promotion_result.apply_type,
                 discount_type=promotion_result.discount_type,
                 action_qty=None if promotion_result.action_qty == 0 else promotion_result.action_qty,
-                discount_value=promotion_result.discount_value,
+                discount_value=None if promotion_result.is_active == 0 else promotion_result.discount_value,
+                is_active=promotion_result.is_active,
                 create_time=datetime.now(),
                 create_user=promotion.create_user
             )
@@ -284,6 +285,7 @@ async def delete_promotion_item_segments(session, promotion_id=None):
         session.commit()
     return deleted_promotion_item
 
+
 async def delete_promotion_import(session, promotion_id=None):
     query = session.query(PromotionImport)
     if promotion_id is not None:
@@ -293,6 +295,7 @@ async def delete_promotion_import(session, promotion_id=None):
             for promotion_import in deleted_promotion_import:
                 session.delete(promotion_import)
             session.commit()
+
 
 async def delete_promotion_location_segments(session, promotion_id=None):
     query = session.query(PromotionLocationSegments)
@@ -442,7 +445,6 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, page
             status_light = 'light_green'  # 部分Done
         else:
             status_light = 'gray'  # 默认
-
 
         time_stats = (
             'Closed' if item.promotion_status == 'inactive' else
@@ -611,6 +613,25 @@ async def get_promotion_location_detail_by_id_v2(session, promotion_id):
     return store_list
 
 
+async def get_promotion_location_detail_by_id_v3(session, promotion_id):
+    try:
+        locations = session.query(WorkerTask.location_id).distinct(WorkerTask.location_id).filter(
+            WorkerTask.data_type == 'promotion',
+            WorkerTask.data_key == str(promotion_id)
+        ).all()
+
+        # 将查询结果转换为字典列表格式
+        result = [
+            {"rtl_loc_id": location.location_id}
+            for location in locations
+        ]
+        app_logger.info(f"get promotion location detail promotion_id: {promotion_id}, 结果: {result}")
+        return result
+    except Exception as e:
+        app_logger.error(f"获取促销位置详情时发生错误，promotion_id: {promotion_id}, 错误: {str(e)}", exc_info=True)
+        return []
+
+
 async def get_promotion_customer_segments_by_id(session, promotion_id):
     promotion_customer_segments = (session.query(
         SegmentsCustomer.segment_id,
@@ -635,10 +656,12 @@ async def get_promotion_customer_segments_by_id(session, promotion_id):
 
     return result
 
+
 async def get_promotion_import_by_id(session, promotion_id):
     promotion_import = session.query(PromotionImport).filter(
         PromotionImport.promotion_id == promotion_id).all()
     return promotion_import
+
 
 async def get_promotionId_segments_by_phone(session, phone_number):
     promotionId_list = (session.query(
@@ -667,6 +690,79 @@ mapping_config = yaml.safe_load(mapping_file)
 promotion_mapping = mapping_config.get("promotion_mapping", {})
 
 PROMOTION_MNT_DEFAULT = dict_condition['promotion_template_default_p']
+
+
+async def process_promotion_termination(promotion_id: int, session, location_id):
+    data_detail = []
+    try:
+        # 获取基础促销数据
+        app_logger.debug(f"获取促销基础数据，promotion_id: {promotion_id}")
+        promotion_data = await get_promotion_by_id(session, promotion_id)
+        if not promotion_data:
+            app_logger.warning(f"未找到促销数据，promotion_id: {promotion_id}")
+            return data_detail
+
+        app_logger.debug(f"获取促销结果数据，promotion_id: {promotion_id}")
+        promotion_result_data = await get_promotion_result_by_id(session, promotion_id)
+
+        promotion_status = promotion_data.promotion_status
+        begin_date = promotion_data.start_date
+        end_date = promotion_data.end_date
+        name = promotion_data.name
+        promotion_group = promotion_data.promotion_group
+        level_id = promotion_data.promotion_level
+
+        iteration_cap = promotion_data.iteration_cap
+
+        discount_type = None
+        discount_value = None
+        apply_type = None
+
+        # 安全获取结果数据
+        if promotion_result_data:
+            discount_type = promotion_result_data[0].discount_type
+            discount_value = promotion_result_data[0].discount_value
+            apply_type = promotion_result_data[0].apply_type
+
+        PRC_DEAL = []
+
+        if promotion_status in ['active', 'inactive']:
+            app_logger.debug(f"处理促销状态数据，status: {promotion_status}")
+
+            DEAL = {
+                **promotion_mapping["DEAL"],
+                "deal_id": promotion_id,
+                "description": name,
+                "consumable": promotion_group,
+                "act_deferred": 1,
+                "effective_date": begin_date.strftime('%Y-%m-%d %H:%M:%S') if begin_date else None,
+                "end_date": end_date.strftime('%Y-%m-%d %H:%M:%S') if end_date else None,
+                "iteration_cap": iteration_cap,
+                "trans_deal_flag": 0 if apply_type == 'Line' else 1,
+                "group_id": f"{level_id}" if apply_type == 'Line' and level_id and level_id > 0 else None,
+                "sort_order": level_id if level_id is not None and apply_type == 'Transaction' else 0
+            }
+
+            if apply_type == 'Transaction':
+                DEAL['trwide_action'] = discount_type
+                DEAL['trwide_amount'] = discount_value
+
+            PRC_DEAL.append(DEAL)
+            data_detail.append(
+                {'table': 'PRC_DEAL', 'table_key': ['organization_id', 'deal_id'], "action": "INSERT_AND_UPDATE",
+                 "data": PRC_DEAL})
+
+            # data_detail.append(
+            #     {'table': 'PRC_DEAL_LOC', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE",
+            #      "data": [{
+            #          **promotion_mapping["PRC_DEAL_LOC"],
+            #          "deal_id": promotion_id,
+            #          "rtl_loc_id": location_id
+            #      }]})
+
+        return data_detail
+    except Exception as e:
+        app_logger.error(f"Error in process_promotion_termination: {str(e)}", exc_info=True)
 
 
 async def process_promotion_data(promotion_id: int, session, location_id):

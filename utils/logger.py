@@ -26,14 +26,13 @@ def setup_logger(name: str, log_file: str, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
-    # 避免重复添加处理器
     if not logger.handlers:
-        # 创建文件处理器，每天轮转
+
         file_handler = TimedRotatingFileHandler(
             log_file,
             when="midnight",
             interval=1,
-            backupCount=30,
+            backupCount=45,
             encoding='utf-8'
         )
         file_handler.setLevel(level)
