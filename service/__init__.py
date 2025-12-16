@@ -38,7 +38,7 @@ def get_engine():
         pool_recycle = db_config.get("pool_recycle", 3600)
 
         if DB_TYPE == 'oracle':
-            db_url = URL.create(
+            connection_string = URL.create(
                 drivername="oracle+cx_oracle",
                 username=db_config["user"],
                 password=db_config["password"],
@@ -50,6 +50,7 @@ def get_engine():
 
             trust_cert = db_config.get('trust_server_certificate', True)
             encrypt = db_config.get('encrypt', 'yes')
+            timeout = db_config.get('connection_timeout', 50)
 
             connection_string = (
                 f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
@@ -57,6 +58,8 @@ def get_engine():
                 f'?driver=ODBC+Driver+17+for+SQL+Server'
                 f'&Encrypt={encrypt}'
                 f'&TrustServerCertificate={"yes" if trust_cert else "no"}'
+                f'&timeout={timeout}'
+                f'&login_timeout={timeout}'
             )
 
             app_logger.info(f"Creating SQL Server engine with host: {db_config['host']}, port: {db_config['port']}")
@@ -64,18 +67,23 @@ def get_engine():
                             f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
                             f"?driver=ODBC+Driver+17+for+SQL+Server")
 
-            engine = create_engine(
-                connection_string,
-                poolclass=QueuePool,
-                pool_size=pool_size,
-                max_overflow=max_overflow,
-                pool_recycle=pool_recycle,
-                pool_pre_ping=True)
-
-            app_logger.info("SQL Server database engine created successfully.")
-            return engine
+            # engine = create_engine(
+            #     connection_string,
+            #     poolclass=QueuePool,
+            #     pool_size=pool_size,
+            #     max_overflow=max_overflow,
+            #     pool_recycle=pool_recycle,
+            #     pool_pre_ping=True,
+            #     connect_args={
+            #         "timeout": timeout,
+            #         "login_timeout": timeout
+            #     }
+            # )
+            #
+            # app_logger.info("SQL Server database engine created successfully.")
+            # return engine
         elif DB_TYPE == 'mysql':
-            db_url = URL.create(
+            connection_string = URL.create(
                 drivername="mysql+pymysql",
                 username=db_config["user"],
                 password=db_config["password"],
@@ -88,15 +96,28 @@ def get_engine():
             raise ValueError(f"Unsupported database type: {DB_TYPE}")
 
         engine = create_engine(
-            db_url,
+            connection_string,
             poolclass=QueuePool,
             pool_size=pool_size,
             max_overflow=max_overflow,
-            pool_recycle=pool_recycle
+            pool_recycle=pool_recycle,
+            pool_pre_ping=True,
+            connect_args={
+                "timeout": timeout,
+                "login_timeout": timeout
+            }
         )
-        app_logger.info("Database engine created successfully.")
-        return engine
+        app_logger.info(f"Testing connection to {DB_TYPE} database...")
+        try:
+            with engine.connect() as conn:
+                conn.execute("SELECT 1")
+            app_logger.info("Database connection test successful.")
+        except Exception as e:
+            app_logger.error(f"Database connection test failed: {str(e)}")
+            raise
 
+        app_logger.info("Database engine created and tested successfully.")
+        return engine
     except Exception as e:
         print(f"Error creating database engine: {str(e)}")
         app_logger.exception("Failed to create database engine.")
@@ -170,4 +191,10 @@ def get_db():
         db.close()
 
 
-Base.metadata.create_all(get_engine())
+try:
+    Base.metadata.create_all(get_engine())
+    app_logger.info("Database tables created/verified successfully.")
+except Exception as e:
+    app_logger.error(f"Failed to create/verify database tables: {str(e)}")
+    app_logger.exception("Detailed traceback for table creation error:")
+    raise
