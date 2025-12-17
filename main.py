@@ -127,6 +127,7 @@ class Segment_Type(Enum):
     customer = "customer"
 
 
+
 class Segment_Status(Enum):
     active = "active"
     inactive = "inactive"
