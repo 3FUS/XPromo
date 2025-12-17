@@ -55,7 +55,7 @@ def get_engine():
             connection_string = (
                 f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
                 f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
-                f'?driver=ODBC+Driver+17+for+SQL+Server'
+                f'?driver=ODBC Driver 17 for SQL Server'
                 f'&encrypt={encrypt}'
                 f'&trust_server_certificate={"yes" if trust_cert else "no"}'
                 f'&timeout={timeout}'
