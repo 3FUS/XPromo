@@ -114,7 +114,7 @@ def get_engine():
         app_logger.info(f"Testing connection to {DB_TYPE} database...")
         try:
             with engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
             app_logger.info("Database connection test successful.")
         except Exception as e:
             app_logger.error(f"Database connection test failed: {str(e)}")
