@@ -56,8 +56,8 @@ def get_engine():
                 f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
                 f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
                 f'?driver=ODBC+Driver+17+for+SQL+Server'
-                f'&Encrypt={encrypt}'
-                f'&TrustServerCertificate={"yes" if trust_cert else "no"}'
+                f'&encrypt={encrypt}'
+                f'&trust_server_certificate={"yes" if trust_cert else "no"}'
                 f'&timeout={timeout}'
                 f'&login_timeout={timeout}'
             )
@@ -67,21 +67,6 @@ def get_engine():
                             f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
                             f"?driver=ODBC+Driver+17+for+SQL+Server")
 
-            # engine = create_engine(
-            #     connection_string,
-            #     poolclass=QueuePool,
-            #     pool_size=pool_size,
-            #     max_overflow=max_overflow,
-            #     pool_recycle=pool_recycle,
-            #     pool_pre_ping=True,
-            #     connect_args={
-            #         "timeout": timeout,
-            #         "login_timeout": timeout
-            #     }
-            # )
-            #
-            # app_logger.info("SQL Server database engine created successfully.")
-            # return engine
         elif DB_TYPE == 'mysql':
             connection_string = URL.create(
                 drivername="mysql+pymysql",
