@@ -1,8 +1,8 @@
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, URL
+from sqlalchemy import create_engine, URL,text
 from models.model import Base
 from sqlalchemy.pool import QueuePool
-
+import urllib.parse
 from utils.logger import app_logger
 
 import os
@@ -52,20 +52,39 @@ def get_engine():
             encrypt = db_config.get('encrypt', 'yes')
             timeout = db_config.get('connection_timeout', 50)
 
+            SERVER = db_config["host"]
+            USERNAME = db_config["user"]
+            PASSWORD = db_config["password"]
+            DATABASE = db_config['database']
+            DRIVER = "ODBC Driver 17 for SQL Server"
+
+            encoded_un = urllib.parse.quote_plus(USERNAME)
+            encoded_pw = urllib.parse.quote_plus(PASSWORD)
+
             connection_string = (
-                f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
-                f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
-                f'?driver=ODBC Driver 17 for SQL Server'
-                f'&encrypt={encrypt}'
-                f'&trust_server_certificate={"yes" if trust_cert else "no"}'
-                f'&timeout={timeout}'
-                f'&login_timeout={timeout}'
+                f"mssql+pyodbc://{encoded_un}:{encoded_pw}@{SERVER}:1433/{DATABASE}"
+                f"?driver={urllib.parse.quote_plus(DRIVER)}" 
+                "&encrypt=yes"
+                "&trust_server_certificate=no"
+                "&login_timeout=30"
             )
 
-            app_logger.info(f"Creating SQL Server engine with host: {db_config['host']}, port: {db_config['port']}")
-            app_logger.info(f"Connection string (without credentials): mssql+pyodbc://"
-                            f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
-                            f"?driver=ODBC+Driver+17+for+SQL+Server")
+            app_logger.info(f"Creating SQL Server connection_string: {connection_string}")
+
+            # connection_string = (
+            #     f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
+            #     f'@{db_config["host"]}:{db_config["port"]}/{db_config["database"]}'
+            #     f'?driver=ODBC Driver 17 for SQL Server'
+            #     f'&encrypt={encrypt}'
+            #     f'&trust_server_certificate={"yes" if trust_cert else "no"}'
+            #     f'&timeout={timeout}'
+            #     f'&login_timeout={timeout}'
+            # )
+
+            # app_logger.info(f"Creating SQL Server engine with host: {db_config['host']}, port: {db_config['port']}")
+            # app_logger.info(f"Connection string (without credentials): mssql+pyodbc://"
+            #                 f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
+            #                 f"?driver=ODBC+Driver+17+for+SQL+Server")
 
         elif DB_TYPE == 'mysql':
             connection_string = URL.create(
