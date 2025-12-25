@@ -18,7 +18,6 @@ promotion_mapping:
     organization_id: 1
     org_code: "*"
     org_value: "*"
-    item_condition_seq: 1
     value1: "TRUE"
   PRC_DEAL_LOC:
     organization_id: 1

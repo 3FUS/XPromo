@@ -6,7 +6,11 @@ item:
   - condition_name: "SUBDEPARTMENT"
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
-    condition_value: ["SELECT DISTINCT hierarchy_id,description from itm_merch_hierarchy where LEVEL_CODE='SUBDEPARTMENT'"]
+    condition_value: ["SELECT DISTINCT hierarchy_id,description+'('+hierarchy_id+')' description from itm_merch_hierarchy where LEVEL_CODE='SUBDEPARTMENT'"]
+  - condition_name: "Brand"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["select DISTINCT vendor,vendor from itm_item_options where vendor is not null"]
   - condition_name: "PRICE"
     condition_type: ['=', '<>', '>', '<', 'between']
     value_type: "number"
@@ -25,6 +29,10 @@ location:
     condition_type: [ '=', '<>', 'include', 'exclude' ]
     value_type: "SQL"
     condition_value: [ "SELECT DISTINCT country,country from loc_rtl_loc where country is not NULL" ]
+  - condition_name: "State"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "select DISTINCT state,state from loc_rtl_loc where state is not null" ]
   - condition_name: "Location ID"
     condition_type: [ '=', '<>', 'include', 'exclude' ]
     value_type: "SQL"

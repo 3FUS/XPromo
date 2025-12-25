@@ -37,8 +37,11 @@ async def submit_user(user: SysUserSubmit, session=Depends(get_db)):
     try:
         if user.user_code:
             if await get_user_by_code(session, user.user_code):
-                await update_sys_user(session, user.user_code, user)
-                msg = "update successfully"
+                if user.submit_type == "edit":
+                    await update_sys_user(session, user.user_code, user)
+                    msg = "update successfully"
+                else:
+                    return {"code": 301, "msg": "用户已存在"}
             else:
                 await create_sys_user(session, user)
                 msg = "create successfully"
@@ -48,12 +51,13 @@ async def submit_user(user: SysUserSubmit, session=Depends(get_db)):
     except Exception as e:
         return {"code": 301, "msg": f"submit error {repr(e)}"}
 
+
 @router.post("/user/change_password", tags=["user"], description='修改用户密码')
 async def change_password(
-    user_code: str,
-    old_password: str,
-    new_password: str,
-    session=Depends(get_db)
+        user_code: str,
+        old_password: str,
+        new_password: str,
+        session=Depends(get_db)
 ):
     try:
         await change_user_password(session, user_code, old_password, new_password)
@@ -63,13 +67,16 @@ async def change_password(
     except Exception as e:
         return {"code": 301, "msg": f"密码修改失败: {repr(e)}"}
 
+
 @router.post("/user/role_submit", tags=["user"], description='角色')
 async def submit_role(role: SysRoleSubmit, session=Depends(get_db)):
     try:
         if role.role_code:
             if await get_role_by_code(session, role.role_code):
-                await update_sys_role(session, role.role_code, role)
-
+                if role.submit_type == "edit":
+                    await update_sys_role(session, role.role_code, role)
+                else:
+                    return {"code": 301, "msg": "角色已存在"}
             else:
                 await create_sys_role(session, role)
             if role.data:
@@ -148,7 +155,6 @@ async def get_role_hierarchical_permissions(role_code: str = '', session=Depends
 @router.get("/user/user_permissions/", tags=["user"])
 async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_db)):
     try:
-        # await get_max_permission_nodes(session, 'admin')
         result_menus = await get_permissions_with_user(session, user_code)
         result_org = await get_max_permission_nodes(session, user_code)
         return {
@@ -159,7 +165,6 @@ async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_
 
         }
         # return await get_permissions_with_user(session, user_code)
-        # return await get_max_permission_nodes(session, 'admin')
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

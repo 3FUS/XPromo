@@ -11,12 +11,11 @@ en:
   promotion_status_updated: "Promotion status updated successfully."
 
   # 错误消息
-  incorrect_credentials: "Incorrect username or password"
-  export_tag_error: "export tag error {0}"
+  export_tag_error: "export tag error"
   file_size_exceeded: "File size exceeds the maximum allowed limit."
   uploaded_file_empty: "Uploaded file is empty."
   excel_parse_failed: "Failed to parse Excel file."
-  segment_name_exists: "{segment_type} segment with this name already exists."
+  segment_name_exists: "Segment with this name already exists."
   invalid_segment_type: "Invalid segment type."
   segment_not_found: "Segment not found."
   get_segments_error: "Error Get Segments: {error}"
@@ -36,6 +35,7 @@ en:
   no_valid_data: "No valid data found in the uploaded file."
   promotion_not_found: "Promotion with id {promotion_id} not found."
   promotion_dashboard_error: "promotion_dashboard: {error}"
+  incorrect_credentials: "Incorrect username or password"
 
   # 其他消息
   no_store_data_export: "No Store data export"
@@ -55,11 +55,11 @@ zh:
 
   # 错误消息
   incorrect_credentials: "用户名或密码错误"
-  export_tag_error: "导出标签错误 {0}"
+  export_tag_error: "导出标签错误"
   file_size_exceeded: "文件大小超过允许的最大限制。"
   uploaded_file_empty: "上传的文件为空。"
   excel_parse_failed: "解析Excel文件失败。"
-  segment_name_exists: "{segment_type} 标签名称已存在。"
+  segment_name_exists: "标签名称已存在。"
   invalid_segment_type: "无效的标签类型。"
   segment_not_found: "未找到标签。"
   get_segments_error: "获取标签错误: {error}"
@@ -80,7 +80,43 @@ zh:
   promotion_not_found: "未找到ID为 {promotion_id} 的促销。"
   promotion_dashboard_error: "促销仪表板: {error}"
 
+
   # 其他消息
   no_store_data_export: "无门店数据导出"
   no_segment_data: "未找到此标签的数据。"
   download_data_error: "下载数据错误: {error}"
+
+jp :
+  segment_submitted: "セグメントが送信されました。"
+  segment_deleted: "セグメントが削除されました。"
+  export_tag_success: "タグのエクスポートが成功しました"
+  no_store_data_export: "ストアデータのエクスポートなし"
+
+  promotion_submitted: "プロモーションが送信されました。"
+    # 错误消息
+  incorrect_credentials: "ユーザー名またはパスワードが間違っています"
+  export_tag_error: "エクスポートタグエラー"
+  file_size_exceeded: "ファイルサイズが最大許可値を超えています。"
+  uploaded_file_empty: "アップロードされたファイルは空です。"
+  excel_parse_failed: "Excelファイルの解析に失敗しました。"
+  segment_name_exists: "セグメント名はすでに存在しています。"
+  invalid_segment_type: "無効なセグメントタイプ。"
+  segment_not_found: "セグメントが見つかりません。"
+  get_segments_error: "セグメントの取得エラー: {error}"
+  submit_segments_error: "セグメントの送信エラー: {error}"
+  segment_in_use: "セグメントが使用中です。削除できません。"
+  delete_segments_error: "セグメントの削除エラー: {error}"
+  read_segments_details_error: "セグメントの詳細の読み取りエラー: {error}"
+  read_store_list_error: "ストアリストの読み取りエラー: {error}"
+  read_promotion_default_error: "プロモーションデフォルトの読み取りエラー: {error}"
+  class_id_not_found: "クラスID {class_id} が見つかりません"
+  subclass_id_not_found: "サブクラスID {subclass_id} はクラス {class_id} に存在しません"
+  submit_promotion_error: "プロモーションの送信エラー: {error}"
+  promotion_exported_cannot_delete: "プロモーションはエクスポートされています。削除できません。"
+  read_promotion_error: "プロモーションの読み取りエラー: {error}"
+  import_promotion_segments_failed: "プロモーションセグメントのインポートに失敗しました: {error}. ユーザーID: {user_id}, ファイル: {filename}"
+  missing_columns: "欠落している列: {columns}"
+  no_valid_data: "アップロードされたファイルには有効なデータがありません。"
+  promotion_not_found: "ID {promotion_id} のプロモーションが見つかりません。"
+  promotion_dashboard_error: "プロモーションダッシュボード: {error}"
+

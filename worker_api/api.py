@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
-from service.promotion import process_promotion_data
+from service.promotion import process_promotion_data, process_promotion_termination
 from service.segments_service import get_segments_item_detail, get_segments_by_phone, process_segment_data
 from worker_api.worker_schemas import WorkerCallBack
 from service.worker import get_worker_next_task, update_worker_task
@@ -40,10 +40,9 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
     #
     # current_time = int(time.time())
     # app_logger.debug(f"Current timestamp: {current_time}")
-    # if abs(current_time - request_time) > 300:
+    # if abs(current_time - request_time) > 300:  # 5分钟
     #     app_logger.warning("Timestamp out of valid range")
     #     return False
-
     allowed_keys = ["x-timestamp", "location-id", "terminal-id"]
     sorted_params = sorted(
         (k.lower(), v) for k, v in headers.items()
@@ -58,7 +57,6 @@ def verify_signature(headers: dict, secret_key: str) -> bool:
         hashlib.sha256
     ).hexdigest()
     app_logger.info(f"Expected signature: {expected_sign}")
-
     return hmac.compare_digest(signature, expected_sign)
 
 
@@ -96,7 +94,7 @@ async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
             "msg": str(e)
         }
 
-
+# , dependencies=[Depends(verify_header_signature)]
 @router.get("/worker_api/get_data")
 async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_db)):
     """
@@ -118,10 +116,14 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
         session_id = worker_next_task.session_id
         data_key = worker_next_task.data_key
         data_type = worker_next_task.data_type
+        termination = worker_next_task.termination
 
         if data_type == 'promotion':
             try:
-                data_detail = await process_promotion_data(data_key, session, location_id)
+                if termination == 1:
+                    data_detail = await process_promotion_termination(data_key, session, location_id)
+                else:
+                    data_detail = await process_promotion_data(data_key, session, location_id)
             except Exception as e:
                 data_detail = []
                 await update_worker_task(session, location_id, terminal_id, session_id, 'E',

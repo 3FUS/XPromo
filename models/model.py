@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DATETIME, TIME, DECI
 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.mssql import NVARCHAR
+from sqlalchemy import Index
 
 Base = declarative_base()
 
@@ -36,7 +37,13 @@ class Promotion(Base):
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
-
+    __table_args__ = (
+        Index('idx_promotion_name', 'name'),
+        Index('idx_promotion_promotion_status', 'promotion_status'),
+        Index('idx_promotion_create_time', 'create_time', postgresql_ops={'create_time': 'DESC'}),
+        Index('idx_promotion_last_session_id', 'last_session_id'),
+        Index('idx_promotion_dates', 'start_date', 'end_date'),
+    )
 
 class PromotionCondition(Base):
     __tablename__ = 'promotions_condition'
@@ -52,6 +59,12 @@ class PromotionCondition(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+    __table_args__ = (
+        Index('idx_promotion_condition_promotion_id', 'promotion_id'),
+        Index('idx_promotion_condition_set_id', 'set_id'),
+    )
+
+
 
 class PromotionResult(Base):
     __tablename__ = 'promotions_result'
@@ -65,6 +78,12 @@ class PromotionResult(Base):
     is_active = Column(Integer, default=1, comment="状态，1表示开启，0表示关闭")
     create_time = Column(DATETIME)
     create_user = Column(String(30))
+
+    __table_args__ = (
+        Index('idx_promotion_result_promotion_id', 'promotion_id'),
+        Index('idx_promotion_result_set_id', 'set_id'),
+    )
+
 
 
 class PromotionCustomerSegments(Base):
@@ -90,6 +109,12 @@ class PromotionItemSegments(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+    __table_args__ = (
+        Index('idx_promotion_item_segments_promotion_id', 'promotion_id'),
+        Index('idx_promotion_item_segments_segment_id', 'segment_id'),
+        Index('idx_promotion_item_segments_set_id', 'set_id'),
+    )
+
 
 class PromotionLocationSegments(Base):
     __tablename__ = 'promotions_location_segments'
@@ -101,6 +126,12 @@ class PromotionLocationSegments(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+    __table_args__ = (
+        Index('idx_promotion_location_segments_promotion_id', 'promotion_id'),
+        Index('idx_promotion_location_segments_segment_id', 'segment_id'),
+    )
+
+
 
 class PromotionOrgJoin(Base):
     __tablename__ = 'promotions_org_join'
@@ -111,6 +142,12 @@ class PromotionOrgJoin(Base):
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
+
+    __table_args__ = (
+        Index('idx_promotion_org_join_promotion_id', 'promotion_id'),
+        Index('idx_promotion_org_join_org_code_value', 'org_code', 'org_value'),
+    )
+
 
 
 class PromotionImport(Base):
@@ -164,7 +201,7 @@ class SegmentsItem(Base):
     segment_status = Column(String(30), comment="商品标签状态")
     condition_type = Column(String(30))
     create_type = Column(String(30), comment="创建类型")
-    public = Column(Integer, comment="是否公开", default=0)
+    public = Column(Integer, comment="是否公开", default=1)
     export = Column(Integer, comment="是否导出", default=0)
     sub_count = Column(Integer, comment="标签数量", default=0)
     last_export_time = Column(DATETIME)
@@ -174,6 +211,13 @@ class SegmentsItem(Base):
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
+
+    __table_args__ = (
+        Index('idx_segments_item_name', 'name'),
+        Index('idx_segments_item_segment_status', 'segment_status'),
+        Index('idx_segments_item_last_session_id', 'last_session_id'),
+        Index('idx_segments_item_public', 'public'),
+    )
 
 
 class SegmentsItemCondition(Base):
@@ -186,6 +230,12 @@ class SegmentsItemCondition(Base):
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
+
+    __table_args__ = (
+        Index('idx_segments_item_condition_segment_id', 'segment_id'),
+        Index('idx_segments_item_condition_name_type', 'condition_name', 'condition_type'),
+    )
+
 
 
 class SegmentsLocation(Base):
@@ -223,8 +273,8 @@ class SegmentsItemDetail(Base):
     __tablename__ = 'segments_item_detail'
     segment_id = Column(Integer, primary_key=True)
     item_id = Column(String(60), primary_key=True)
-    item_name = Column(String(60))
-    item_description = Column(String(255))
+    item_name = Column(NVARCHAR(255))
+    item_description = Column(NVARCHAR(255))
     item_department = Column(String(30))
     item_class = Column(String(30))
     item_sub_class = Column(String(30))
@@ -235,6 +285,10 @@ class SegmentsItemDetail(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+    __table_args__ = (
+        Index('idx_segments_item_detail_segment_id', 'segment_id'),
+        Index('idx_segments_item_detail_item_id', 'item_id'),
+    )
 
 class SegmentsLocationDetail(Base):
     __tablename__ = 'segments_location_detail'
@@ -257,6 +311,9 @@ class PromotionNextSequence(Base):
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
+    __table_args__ = (
+        Index('idx_promotion_next_sequence_type', 'sequence_type'),
+    )
 
 
 class SegmentsCustomerDetail(Base):
@@ -320,6 +377,12 @@ class WorkerTask(Base):
     update_time = Column(DATETIME)
     update_user = Column(String(30))
 
+    __table_args__ = (
+        Index('idx_worker_task_session_id', 'session_id'),
+        Index('idx_worker_task_status', 'status'),
+        Index('idx_worker_task_data_type_key', 'data_type', 'data_key'),
+        Index('idx_worker_task_location_id', 'location_id'),
+    )
 
 class WorkerTerminal(Base):
     __tablename__ = 'worker_terminal'

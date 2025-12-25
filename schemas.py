@@ -133,10 +133,11 @@ class PromotionCondition(BaseModel):
 class PromotionResult(BaseModel):
     set_id: Optional[int] = 2
     overlap: int = 0
-    apply_type: str
-    discount_type: str
+    apply_type: Optional[str] = 'Line'
+    discount_type: Optional[str] = None
     action_qty: Optional[int] = 0
     discount_value: Optional[Union[float, int]] = None
+    is_active: Optional[int] = 1
 
 
 class PromotionSubmit(BaseModel):
@@ -181,6 +182,7 @@ class SysUserRole(BaseModel):
 
 
 class SysUserSubmit(BaseModel):
+    submit_type: str = "add"
     user_code: str
     user_name: str
     user_password: Optional[str] = Field(None)
@@ -194,6 +196,7 @@ class SysUserSubmit(BaseModel):
 
 
 class SysRoleSubmit(BaseModel):
+    submit_type: str = "add"
     role_code: str
     role_description: str
     role_status: str = "active"

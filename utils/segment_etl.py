@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 import asyncio
 import service
@@ -9,6 +10,8 @@ from datetime import datetime
 
 import yaml
 from typing import Optional
+
+from utils.logger import app_logger
 
 from service.segments_service import update_segment_some
 
@@ -157,7 +160,80 @@ def load_item_data_from_db(segment_type, engine=None):
     return pd.concat(chunks, ignore_index=True)
 
 
-async def run_segment_cleaning(segment_type, segment_id, condition_logic, session: Optional[Session] = None):
+async def get_segments_for_current_time():
+    """
+    查询当前时间需要执行的 segments
+    根据 schedule_type, schedule_value, schedule_time 判断
+    """
+    current_time = datetime.now()
+    current_hour = current_time.hour
+    current_minute = current_time.minute
+    current_weekday = current_time.weekday()  # 0=Monday, 6=Sunday (Monday=0)
+    current_day = current_time.day
+
+    # 格式化当前时间为 HH:MM 格式
+    time_str = f"{current_hour:02d}:{current_minute:02d}"
+
+    # SQL 查询当前时间需要执行的 segments
+    # D: 每天执行，W: 每周执行(匹配星期几)，M: 每月执行(匹配日期)
+    query = text("""
+    SELECT si.segment_id, ss.schedule_type, ss.schedule_value, ss.schedule_time, si.condition_type
+    FROM segments_items si
+    INNER JOIN segments_schedule ss ON ss.segment_id = si.segment_id 
+        AND ss.segment_type = 'item'
+    WHERE si.segment_status = 'active' 
+        AND si.create_type = 'condition'
+        AND ss.schedule_time = :time_str
+        AND (
+            (ss.schedule_type = 'D')  -- 每天执行
+            OR (ss.schedule_type = 'W' AND ss.schedule_value = :current_weekday)  -- 每周指定星期
+            OR (ss.schedule_type = 'M' AND ss.schedule_value = :current_day)   -- 每月指定日期
+        )
+    """)
+
+    # app_logger.info(f"Executing query: {query}")
+    # app_logger.info(
+    #     f"Query parameters: time_str={time_str}, current_weekday={current_weekday}, current_day={current_day}")
+
+    try:
+        engine = service.get_engine()
+        with engine.connect() as conn:
+            result = conn.execute(query, {
+                'time_str': time_str,
+                'current_weekday': current_weekday,
+                'current_day': current_day
+            })
+
+            segments = []
+            for row in result:
+                segment = {
+                    'segment_id': row[0],
+                    'schedule_type': row[1],
+                    'schedule_value': row[2],
+                    'schedule_time': row[3],
+                    'condition_type': row[4]  # 新增 condition_type
+                }
+                segments.append(segment)
+            app_logger.info(f"ETL Segments for current time:{time_str}, segment {segments}")
+            return segments
+
+    except Exception as e:
+        app_logger.error(f"Error getting segments for current time: {str(e)}")
+        return []
+
+async def run_segment_cleaning(segment_type='item', segment_id=None, condition_logic='and', session: Optional[Session] = None):
+    if segment_id is None:
+        # 执行当前时间需要的所有 segments
+        segments_to_run = await get_segments_for_current_time()
+        for segment in segments_to_run:
+            app_logger.info(f"ETL segment {segment['segment_id']}")
+            await _execute_single_segment(segment['segment_id'], segment_type, segment.get('condition_type', 'and'))
+    else:
+        # 执行特定 segment
+        await _execute_single_segment(segment_id, segment_type, condition_logic, session)
+
+async def _execute_single_segment(segment_id: int, segment_type: str, condition_logic: str, session: Optional[Session] = None):
+    """执行单个 segment 的清理任务"""
     engine = service.get_engine()
     external_session = session is not None
     if not external_session:
@@ -173,6 +249,7 @@ async def run_segment_cleaning(segment_type, segment_id, condition_logic, sessio
         cleaned_df = apply_conditions_to_items(segment_type, raw_df, conditions, condition_logic)
 
         if cleaned_df.empty:
+            app_logger.warning(f"[run segment cleaning], No items matched the conditions for segment_id {segment_id}")
             raise ValueError(f"No items matched the conditions for segment_id {segment_id}")
 
         model_class = SEGMENT_DETAIL_MODELS.get(segment_type)
@@ -180,6 +257,7 @@ async def run_segment_cleaning(segment_type, segment_id, condition_logic, sessio
         id_field = SEGMENT_ID_FIELDS.get(segment_type)
 
         if not all([model_class, field_map, id_field]):
+            app_logger.error(f"[run segment cleaning], Invalid segment type: {segment_type}")
             raise ValueError(f"Invalid segment type: {segment_type}")
 
         existing_ids = {
@@ -194,25 +272,29 @@ async def run_segment_cleaning(segment_type, segment_id, condition_logic, sessio
         has_changes = bool(added_ids or removed_ids)
 
         if has_changes:
+            app_logger.info(f"[run segment cleaning], segment_id {segment_id} has changes: added {len(added_ids)}, removed {len(removed_ids)}")
             session.query(model_class).filter(model_class.segment_id == segment_id).delete(synchronize_session=False)
+            session.flush()
             sub_count = _insert_details(session, model_class, cleaned_df, segment_id, field_map, now_time)
             segment_some = {"run_time": now_time, "sub_count": sub_count, 'update_time': now_time}
         else:
+            app_logger.info(f"[run segment cleaning], segment_id {segment_id} has no changes")
             segment_some = {"run_time": now_time, "sub_count": len(new_ids)}
 
         session.commit()
         await update_segment_some(segment_type, session, segment_id, segment_some)
-        print(f"Segment {segment_id} processed successfully.")
+        app_logger.info(f"[run segment cleaning], segment_id {segment_id} processed successfully.")
 
     except Exception as e:
         session.rollback()
-        print(f"Error processing segment {segment_id}: {str(e)}")
+        app_logger.error(f"Error processing segment {segment_id}: {str(e)}")
         raise
     finally:
-        session.close()
-        engine.dispose()
+        if not external_session:
+            session.close()
+            engine.dispose()
 
-
-if __name__ == '__main__':
-    print(f"[{datetime.now()}] start.")
-    asyncio.run(run_segment_cleaning('item', 20006, 'and'))
+#
+# if __name__ == '__main__':
+#     print(f"[{datetime.now()}] start.")
+#     asyncio.run(run_segment_cleaning('item', 20006, 'and'))

@@ -8,8 +8,7 @@ import schemas
 from service.mnt_generate import generate_deal_insert, generate_deal_item_insert, generate_deal_item_test_insert, \
     generate_deal_trigger_insert, generate_deal_coupon_xref_insert
 from utils.sftp_uploader import upload_mnt_file
-from worker_api.api import router as worker_api_router
-from routers.user import router as user_api_router
+
 import service
 from models.model import SegmentsItem, SegmentsItemDetail, SegmentsCustomer, SegmentsCustomerDetail, SegmentsLocation, \
     SegmentsLocationDetail, PromotionItemSegments, PromotionCondition, PromotionResult, PromotionImport
@@ -62,30 +61,38 @@ from service.access_service import verify_password, get_sys_user_configuration
 from utils.segment_etl import run_segment_cleaning
 from service import get_db
 from utils.config_manager import config_manager
+from utils.upload_utils import validate_and_read_file, _clean_and_standardize_data
+from core.security import get_current_user, create_access_token
+from utils.logger import app_logger
+
+from contextlib import asynccontextmanager
+from scheduler.scheduler_manager import scheduler_manager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        # 启动时
+        scheduler_manager.init_scheduler()
+        await scheduler_manager.start_scheduler()
+        app_logger.info("Application and scheduler started successfully")
+    except Exception as e:
+        app_logger.error(f"Failed to start scheduler: {e}")
+        raise
+    yield
+    try:
+        await scheduler_manager.shutdown_scheduler()
+        app_logger.info("Application and scheduler shutdown completed")
+    except Exception as e:
+        app_logger.error(f"Error during shutdown: {e}")
+        raise
+
 
 app = FastAPI(
     title="promotion_api",
-    description="promotion_api"
+    description="promotion_api",
+    lifespan=lifespan
 )
-
-from utils.logger import app_logger
-
-# # 创建后台调度器
-# def start_scheduler():
-#     from apscheduler.schedulers.background import BackgroundScheduler
-#     scheduler = BackgroundScheduler()
-#     scheduler.add_job(run_segment_cleaning, 'interval', minutes=1, args=[20006, 'and'])
-#     scheduler.start()
-#     print("Scheduler started.")
-#
-#     # 应用退出时关闭调度器
-#     import atexit
-#     @atexit.register
-#     def on_shutdown():
-#         scheduler.shutdown()
-#         print("Scheduler stopped.")
-
-# 显式调用同步数据库初始化函数
 
 file = open('config/segments_condition.yaml', 'r', encoding='utf-8')
 dict_condition = yaml.safe_load(file)
@@ -108,15 +115,17 @@ config_manager.add_callback(on_config_update)
 on_config_update()
 
 from routers.configuration import router as configuration_api_router
+from worker_api.api import router as worker_api_router
+from routers.user import router as user_api_router
+from routers.segments import router as segments_api_router
 
 app.include_router(configuration_api_router)
-app.include_router(worker_api_router, prefix="/worker")
+app.include_router(worker_api_router, prefix="/worker", tags=["worker"])
 app.include_router(user_api_router, prefix="/user_api")
+app.include_router(segments_api_router, prefix="/promotion_api/segments", tags=["segments"])
 
 # PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
 
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="promotion_api/token")
 
@@ -125,7 +134,6 @@ class Segment_Type(Enum):
     item = "item"
     location = "location"
     customer = "customer"
-
 
 
 class Segment_Status(Enum):
@@ -144,42 +152,11 @@ class Promotion_Type(Enum):
     Coupon = "Coupon"
 
 
-# @asynccontextmanager
-# async def get_db():
-#     db = await service.create_async_session()
-#     try:
-#         yield db
-#     finally:
-#         await db.close()
-
-
-def create_access_token(data: dict, expires_delta: timedelta = None):
-    to_encode = data.copy()
-    to_encode.update({"exp": datetime.utcnow() + expires_delta})
-    encoded_jwt = jwt.encode(to_encode, dict_config['SECRET_KEY'], algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        # 示例中没有真正解码 JWT，根据实际业务实现
-        payload = jwt.decode(token, dict_config['SECRET_KEY'], algorithms=[ALGORITHM])
-        userid: str = payload.get("sub")
-
-        if userid is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    return userid
-
-
 @app.post("/promotion_api/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session=Depends(get_db)):
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(),
+                                 lang: str = Query("en",
+                                                   description="Language preference: 'en' for English, 'zh' for Chinese"),
+                                 session=Depends(get_db)):
     user = await authenticate_user(form_data.username, form_data.password, session)
     if not user:
         # raise HTTPException(
@@ -187,8 +164,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         #     detail="Incorrect username or password",
         #     headers={"WWW-Authenticate": "Bearer"},
         # )
-        return {"code": 301, "msg": "Incorrect username or password"}
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        return {"code": 301, "msg": get_message("incorrect_credentials", lang)}
+    access_token_expires = timedelta(minutes=720)
     access_token = create_access_token(
         data={"sub": user['user_code']}, expires_delta=access_token_expires
     )
@@ -205,7 +182,6 @@ async def authenticate_user(username: str, password: str, session):
 
 
 async def get_location_detail_by_promotionId(promotion_id: int, session=Depends(get_db)) -> dict:
-
     app_logger.info(f"[get_location_detail_by_promotionId] 开始获取促销位置详情, promotion_id: {promotion_id}")
 
     try:
@@ -314,6 +290,7 @@ def generate_item_mnt_file(segment_id, item_list,
 @app.get("/promotion_api/segments/export_segments")
 async def export_segments(segment_type: Segment_Type, segment_id: int,
                           store_ids: str = Query(None, description="逗号分隔的门店ID列表"),
+                          lang: str = Query("en"),
                           session=Depends(get_db),
                           user_id=Depends(get_current_user)):
     """
@@ -337,9 +314,9 @@ async def export_segments(segment_type: Segment_Type, segment_id: int,
                 await update_segment_some(segment_type.value, session, segment_id,
                                           {"last_session_id": sessionId, "export_time": datetime.now()})
 
-            msg = "export tag success"
+            msg = get_message("export_tag_success", lang)
         else:
-            msg = "No Store data export"
+            msg = get_message("no_store_data_export", lang)
 
         return {"code": 200, "msg": msg}
     except Exception as e:
@@ -348,7 +325,10 @@ async def export_segments(segment_type: Segment_Type, segment_id: int,
 
 
 @app.get("/promotion_api/promotion/export_promotion")
-async def export_promotion(promotion_id: int, session=Depends(get_db), user_id=Depends(get_current_user)):
+async def export_promotion(promotion_id: int, session=Depends(get_db),
+                           lang: str = Query("en",
+                                             description="Language preference: 'en' for English, 'zh' for Chinese"),
+                           user_id=Depends(get_current_user)):
     """
     导出MNT
     """
@@ -420,13 +400,14 @@ async def export_promotion(promotion_id: int, session=Depends(get_db), user_id=D
             sessionId = await create_worker_task(session, df_locs['rtl_loc_id'].tolist(), 'promotion', promotion_id)
             df_termination_locs = locs_data['termination_locs']
             if not df_termination_locs.empty:
-                sessionId = await create_termination_task(session, df_termination_locs['rtl_loc_id'].tolist(), 'promotion',
+                sessionId = await create_termination_task(session, df_termination_locs['rtl_loc_id'].tolist(),
+                                                          'promotion',
                                                           promotion_id)
             await update_promotion_export_time(session, promotion_id, export_date, sessionId)
-        return {"code": 200, "msg": get_message("export_tag_success")}
+        return {"code": 200, "msg": get_message("export_tag_success", lang)}
     except Exception as e:
-        app_logger.error("export_tag {}".format(repr(e)))
-        return {"code": 301, "msg": get_message("export_tag_error", error=str(e))}
+        app_logger.error(f"export_tag: {repr(e)}")
+        return {"code": 301, "msg": get_message("export_tag_error", lang)}
 
 
 @app.get("/promotion_api/segments/download_segments")
@@ -498,37 +479,6 @@ async def download_segments(
         return {'code': 500, "msg": f"Error downloading data: {str(e)}"}
 
 
-ITEM_ID_ALIASES = {
-    'itemid', 'item ID', 'item-id', 'itemID', 'item', 'ITEM_ID'
-}
-
-Location_ID_ALIASES = {
-    'Location', 'Location-ID', 'LocationID', 'rtl_loc_id', 'Location_ID', 'location_id', 'RTL_LOC_ID', 'Location Id'
-}
-
-CUST_ID_ALIASES = {
-    'phone'
-}
-
-
-# 标准化 DataFrame 列名
-def standardize_columns(df):
-    item_id_aliases = {alias.lower() for alias in ITEM_ID_ALIASES}
-    location_id_aliases = {alias.lower() for alias in Location_ID_ALIASES}
-    standardized = {}
-    for col in df.columns:
-        col_lower = col.lower()
-        if col_lower in item_id_aliases:
-            standardized[col] = 'item_id'
-        elif col_lower in location_id_aliases:
-            standardized[col] = 'rtl_loc_id'
-        elif col_lower in CUST_ID_ALIASES:
-            standardized[col] = 'cust_phone'
-        else:
-            standardized[col] = col
-    return df.rename(columns=standardized)
-
-
 @app.post("/promotion_api/segment/upload_segment")
 async def upload_segment(segment_type: Segment_Type, name: str, description: str, segment_id: int = None,
                          uFile: UploadFile = File(...), session=Depends(get_db), user_id=Depends(get_current_user)):
@@ -555,7 +505,7 @@ async def upload_segment(segment_type: Segment_Type, name: str, description: str
         if upload_data.empty:
             return {'code': 303, "msg": "Uploaded file is empty."}
 
-        upload_data = standardize_columns(upload_data)
+        # upload_data = standardize_columns(upload_data)
 
         segment_classes = {
             Segment_Type.item: (SegmentsItem, SegmentsItemDetail, get_item_segment_by_name, create_segment_item),
@@ -702,6 +652,7 @@ async def read_segments(
 @app.post("/promotion_api/segments/submit")
 async def submit_segments(
         segment: SegmentSubmit,
+        lang: str = Query("en"),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
@@ -716,7 +667,7 @@ async def submit_segments(
             else:
                 existing_segment = await get_item_segment_by_name(session, name=item_segment.name)
                 if existing_segment:
-                    return {'code': 300, "msg": "Item segment with this name already exists."}
+                    return {'code': 300, "msg": get_message("segment_name_exists", lang)}
                 insert_segment = await create_segment_item(session, item_segment, user_id)
                 insert_segment_id = insert_segment.segment_id
 
@@ -749,7 +700,7 @@ async def submit_segments(
         if segment.segment.create_type == 'condition':
             await run_segment_cleaning(segment.segment_type.value, insert_segment_id, segment.segment.condition_type,
                                        session)
-        return {'code': 200, "segment_id": insert_segment_id, "msg": "Segment submitted successfully."}
+        return {'code': 200, "segment_id": insert_segment_id, "msg": get_message("segment_submitted", lang)}
     except Exception as e:
         app_logger.error(f"Error Submit Segments: {str(e)}")
         return {'code': 300, "msg": str(e)}
@@ -759,6 +710,7 @@ async def submit_segments(
 async def delete_segments(
         segment_id: int,
         segment_type: Segment_Type,
+        lang: str = Query("en"),
         session=Depends(get_db),
         user_id: int = Depends(get_current_user)
 ):
@@ -766,28 +718,28 @@ async def delete_segments(
         if segment_type == Segment_Type.item:
             in_use = await get_item_segments_in_use_by_id(session, segment_id)
             if in_use:
-                return {'code': 301, "msg": "Segment in use.cannot be deleted."}
+                return {'code': 301, "msg": get_message('segment_in_use', lang)}
             await delete_segment_item(session, segment_id)
             await delete_segment_item_condition(session, segment_id)
             await delete_segment_schedule(session, segment_id, segment_type.value)
         elif segment_type == Segment_Type.location:
             in_use = await get_location_segments_in_use_by_id(session, segment_id)
             if in_use:
-                return {'code': 301, "msg": "Segment in use.cannot be deleted."}
+                return {'code': 301, "msg": get_message('segment_in_use', lang)}
             await delete_segment_location(session, segment_id)
             await delete_segment_location_condition(session, segment_id)
             await delete_segment_schedule(session, segment_id, segment_type.value)
         elif segment_type == Segment_Type.customer:
             in_use = await get_customer_segments_in_use_by_id(session, segment_id)
             if in_use:
-                return {'code': 301, "msg": "Segment in use.cannot be deleted."}
+                return {'code': 301, "msg": get_message('segment_in_use', lang)}
             await delete_segment_customer(session, segment_id)
             await delete_segment_customer_condition(session, segment_id)
             await delete_segment_schedule(session, segment_id, segment_type.value)
         else:
             return {'code': 300, "msg": "Invalid segment type."}
 
-        data = {'code': 200, "msg": f"Segment deleted successfully user: {user_id}."}
+        data = {'code': 200, "msg": get_message('segment_deleted', lang)}
         app_logger.info(data)
         return data
     except Exception as e:
@@ -867,23 +819,59 @@ async def read_promotion_class(
         user_id=Depends(get_current_user)):
     p_class = [item.copy() for item in template_config['promotion_class']]
     app_logger.info(f"Promotion class: {p_class}")
+
     # 根据语言偏好设置返回相应的描述
     if lang == "zh":
-        # 处理中文
+        # 处理简体中文
         for item in p_class:
             if 'code_zh' in item:
                 item['code'] = item['code_zh']
             if 'description_zh' in item:
                 item['description'] = item['description_zh']
+
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
+            item.pop('code_jp', None)
+            item.pop('description_jp', None)
+    elif lang == "zh_tw":
+        # 处理繁体中文
+        for item in p_class:
+            if 'code_zh_tw' in item:
+                item['code'] = item['code_zh_tw']
+            if 'description_zh_tw' in item:
+                item['description'] = item['description_zh_tw']
             # 移除中文字段，避免暴露给前端多余的数据
             item.pop('code_zh', None)
             item.pop('description_zh', None)
-    # else:
-    #     # 处理英文 - 移除中文字段
-    #     for item in p_class:
-    #         # 移除中文字段，避免暴露给前端多余的数据
-    #         item.pop('code_zh', None)
-    #         item.pop('description_zh', None)
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
+            item.pop('code_jp', None)
+            item.pop('description_jp', None)
+    elif lang == "jp":
+        # 处理日文
+        for item in p_class:
+            if 'code_jp' in item:
+                item['code'] = item['code_jp']
+            if 'description_jp' in item:
+                item['description'] = item['description_jp']
+            # 移除其他语言字段，避免暴露给前端多余的数据
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
+            item.pop('code_jp', None)
+            item.pop('description_jp', None)
+    else:
+        # 处理英文 - 移除所有其他语言字段
+        for item in p_class:
+            item.pop('code_zh', None)
+            item.pop('description_zh', None)
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
+            item.pop('code_jp', None)
+            item.pop('description_jp', None)
 
     return {'code': 200, 'promotion_class': p_class}
 
@@ -945,7 +933,7 @@ async def read_promotion_type(user_id=Depends(get_current_user)):
 @app.get("/promotion_api/promotion/promotion_template")
 async def read_promotion_template(
         class_id: str,
-        lang: str = Query("en", description="Language preference: 'en' for English, 'zh' for Chinese"),
+        lang: str = Query("en"),
         user_id=Depends(get_current_user)
 ):
     app_logger.info(f"read_promotion_template called with class_id={class_id}, lang={lang}, user_id={user_id}")
@@ -955,7 +943,7 @@ async def read_promotion_template(
 
     # 根据语言偏好设置返回相应的描述
     if lang == "zh":
-        app_logger.info("Processing Chinese language request")
+        app_logger.info("Processing Simplified Chinese language request")
         for item in filtered_data:
             if 'code_zh' in item:
                 item['code'] = item['code_zh']
@@ -964,6 +952,26 @@ async def read_promotion_template(
             # 移除中文字段，避免暴露给前端多余的数据
             item.pop('code_zh', None)
             item.pop('description_zh', None)
+    elif lang == "zh_tw":
+        app_logger.info("Processing Traditional Chinese language request")
+        for item in filtered_data:
+            if 'code_zh_tw' in item:
+                item['code'] = item['code_zh_tw']
+            if 'description_zh_tw' in item:
+                item['description'] = item['description_zh_tw']
+            # 移除中文字段，避免暴露给前端多余的数据
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
+    elif lang == "jp":
+        app_logger.info("Processing Japanese language request")
+        for item in filtered_data:
+            if 'code_jp' in item:
+                item['code'] = item['code_jp']
+            if 'description_jp' in item:
+                item['description'] = item['description_jp']
+            # 移除日语字段，避免暴露给前端多余的数据
+            item.pop('code_jp', None)
+            item.pop('description_jp', None)
     else:
         app_logger.info("Processing English language request - removing Chinese fields")
         # 处理英文 - 移除中文字段
@@ -971,6 +979,8 @@ async def read_promotion_template(
             # 移除中文字段，避免暴露给前端多余的数据
             item.pop('code_zh', None)
             item.pop('description_zh', None)
+            item.pop('code_zh_tw', None)
+            item.pop('description_zh_tw', None)
 
     app_logger.info(f"Returning {len(filtered_data)} items after language processing")
     return {'code': 200, 'promotion_template': filtered_data}
@@ -1057,7 +1067,7 @@ async def delete_promo(
         res_promo = await get_promotion_by_id(session, promotion_id)
 
         if res_promo.last_export_time:
-            return {'code': 301, "msg": "Promotion has been exported, cannot be deleted."}
+            return {'code': 301, "msg": get_message("promotion_exported_cannot_delete", lang)}
 
         await delete_promotion(session, promotion_id)
         await delete_promotion_item_segments(session, promotion_id)
@@ -1137,6 +1147,7 @@ async def import_promotion_segments(
         submit: Union[dict, str, None] = Body(None),
         uFile: UploadFile = File(None),
         preview: bool = Query(False, description="是否为预览模式"),
+lang: str = Query("en"),
         session=Depends(get_db),
         user_id=Depends(get_current_user)
 ):
@@ -1182,10 +1193,10 @@ async def import_promotion_segments(
                                                 submit_model.promotion_org_data)
 
             if uFile is None:
-                return {'code': 200, "promotion_id": promotion_id, "msg": "Promotion submitted successfully."}
+                return {'code': 200, "promotion_id": promotion_id, "msg": get_message("promotion_submitted", lang)}
 
-        df = await _validate_and_read_file(uFile)
-        df = _clean_and_standardize_data(df)
+        df = await validate_and_read_file(uFile)
+        df = await _clean_and_standardize_data(df)
 
         if preview:
             return await _generate_preview_response(df)
@@ -1203,60 +1214,6 @@ async def import_promotion_segments(
         app_logger.error(f"import_promotion_segments failed: {repr(e)}. User ID: {user_id}, File: {uFile.filename}",
                          exc_info=True)
         return {'code': 301, "msg": str(e)}
-
-
-async def _validate_and_read_file(uFile: UploadFile):
-    """验证文件并读取数据"""
-    # 限制文件大小
-    max_file_size = 10 * 1024 * 1024  # 10MB
-    if uFile.size > max_file_size:
-        raise ValueError("File size exceeds the maximum allowed limit.")
-
-    contents = await uFile.read()
-    file_name = uFile.filename
-
-    # 检查文件是否为空
-    if not contents:
-        raise ValueError("Uploaded file is empty.")
-
-    # 读取Excel文件
-    try:
-        df = pd.read_excel(io.BytesIO(contents), dtype=str)
-        app_logger.info(f"Excel file parsed successfully, shape: {df.shape}")
-    except pd.errors.ParserError as e:
-        raise ValueError(f"Failed to parse Excel file: {str(e)}")
-    except Exception as e:
-        raise ValueError(f"Failed to parse Excel file: {str(e)}")
-
-    if df.empty:
-        raise ValueError("Uploaded file is empty (no data)")
-
-    return df
-
-
-def _clean_and_standardize_data(df):
-    """清理和标准化数据"""
-    # 标准化列名
-    original_columns = df.columns.tolist()
-    df = standardize_columns(df)
-
-    # 检查必需列是否存在
-    required_columns = ['item_id', 'price']
-    missing_columns = [col for col in required_columns if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"Missing columns: {missing_columns}")
-
-    # 清理数据
-    initial_count = len(df)
-    df = df.dropna(subset=['item_id', 'price'])
-
-    df['price'] = pd.to_numeric(df['price'], errors='coerce')
-    df = df.dropna(subset=['price'])
-
-    if len(df) == 0:
-        raise ValueError("No valid data found in the uploaded file.")
-
-    return df
 
 
 async def _generate_preview_response(df):
@@ -1485,7 +1442,7 @@ async def read_promotion_dashboard(
         app_logger.error(f"promotion_dashboard: {repr(e)}")
         return {'code': 301, "msg": str(e)}
 
-# # # # #
+
 if __name__ == '__main__':
     import uvicorn
 
