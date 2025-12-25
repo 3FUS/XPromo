@@ -56,5 +56,5 @@ class ConfigManager:
                 print(f"Error in config change callback: {e}")
 
 
-# 创建全局实例
+
 config_manager = ConfigManager()
