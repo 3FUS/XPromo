@@ -1,5 +1,5 @@
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, URL,text
+from sqlalchemy import create_engine, URL, text
 from models.model import Base
 from sqlalchemy.pool import QueuePool
 import urllib.parse
@@ -49,6 +49,8 @@ def get_engine():
         elif DB_TYPE == 'sqlserver':
 
             trust_cert = db_config.get('trust_server_certificate', True)
+            trust_server_certificate = 'yes' if trust_cert else 'no'
+
             encrypt = db_config.get('encrypt', 'yes')
             timeout = db_config.get('connection_timeout', 50)
 
@@ -63,9 +65,9 @@ def get_engine():
 
             connection_string = (
                 f"mssql+pyodbc://{encoded_un}:{encoded_pw}@{SERVER}:1433/{DATABASE}"
-                f"?driver={urllib.parse.quote_plus(DRIVER)}" 
-                "&encrypt=yes"
-                "&trust_server_certificate=no"
+                f"?driver={urllib.parse.quote_plus(DRIVER)}"
+                f"&encrypt={encrypt}"
+                f"&trust_server_certificate={trust_server_certificate}"
                 "&login_timeout=30"
             )
 
