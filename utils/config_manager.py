@@ -56,5 +56,4 @@ class ConfigManager:
                 print(f"Error in config change callback: {e}")
 
 
-
 config_manager = ConfigManager()
