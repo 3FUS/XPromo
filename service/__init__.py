@@ -11,10 +11,10 @@ import sys
 
 def get_engine():
     if getattr(sys, 'frozen', False):
-        # 如果是打包后的exe，从exe所在目录加载配置
+        app_logger.info("Running in a frozen executable")
         config_path = os.path.join(os.path.dirname(sys.executable), 'config', 'database_config.py')
     else:
-        # 如果是脚本运行，从当前目录加载配置
+        app_logger.info("Running in a source code directory")
         config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'database_config.py')
 
     # 动态加载配置文件

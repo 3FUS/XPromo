@@ -4,8 +4,14 @@ from pathlib import Path
 
 
 class ConfigManager:
-    def __init__(self, config_path: str = "config/config_template.yaml"):
-        self.config_path = config_path
+    def __init__(self, config_path: str = None):
+        if config_path is None:
+            if getattr(sys, 'frozen', False):
+                self.config_path = os.path.join(os.path.dirname(sys.executable), 'config', 'config_template.yaml')
+            else:
+                self.config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'config_template.yaml')
+        else:
+            self.config_path = config_path
         self.config_data: Dict[str, Any] = {}
         self.callbacks: list[Callable] = []
         self.load_config()
