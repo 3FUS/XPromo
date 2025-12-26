@@ -5,18 +5,10 @@ from sqlalchemy.pool import QueuePool
 import urllib.parse
 from utils.logger import app_logger
 
-import os
-import sys
-
+from utils.path_utils import get_config_path
 
 def get_engine():
-    if getattr(sys, 'frozen', False):
-        app_logger.info("Running in a frozen executable")
-        config_path = os.path.join(os.path.dirname(sys.executable), 'config', 'database_config.py')
-    else:
-        app_logger.info("Running in a source code directory")
-        config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'database_config.py')
-
+    config_path = get_config_path('database_config.py')
     # 动态加载配置文件
     import importlib.util
     spec = importlib.util.spec_from_file_location("database_config", config_path)
