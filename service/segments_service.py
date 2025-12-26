@@ -11,6 +11,7 @@ from datetime import datetime
 from sqlalchemy import text, case, func
 import yaml
 
+
 def generate_segment_id(session: Session, sequence_type: str):
     # 获取当前的 last_segment_id
     sequence = session.query(PromotionNextSequence).filter_by(sequence_type=sequence_type).first()
@@ -101,8 +102,9 @@ async def create_segment_item(session: Session, item_segment: SegmentsItemCreate
         create_type=item_segment.create_type,
         segment_status=item_segment.segment_status,
         condition_type=item_segment.condition_type,
-        create_time=datetime.now(),  # 添加: 设置创建时间为当前系统时间
-        create_user=user_id,  # 假设创建用户为系统
+        public=1,
+        create_time=datetime.now(),
+        create_user=user_id,
     )
     session.add(new_item_segment)
     session.commit()
@@ -463,15 +465,16 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
         ).outerjoin(
             WorkerTask,
             SegmentsItem.last_session_id == WorkerTask.session_id
-        ).group_by(SegmentsItem.segment_id,
-                   SegmentsItem.name,
-                   SegmentsItem.description,
-                   SegmentsItem.create_type,
-                   SegmentsItem.sub_count,
-                   SegmentsItem.segment_status,
-                   SegmentsItem.create_time,
-                   SegmentsItem.create_user,
-                   SegmentsItem.last_export_time)
+        ).filter(SegmentsItem.public == 1
+                 ).group_by(SegmentsItem.segment_id,
+                            SegmentsItem.name,
+                            SegmentsItem.description,
+                            SegmentsItem.create_type,
+                            SegmentsItem.sub_count,
+                            SegmentsItem.segment_status,
+                            SegmentsItem.create_time,
+                            SegmentsItem.create_user,
+                            SegmentsItem.last_export_time)
 
         # 应用筛选条件
         if key_word:

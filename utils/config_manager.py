@@ -1,6 +1,6 @@
 import yaml
 from typing import Dict, Any, Callable
-from path_utils import get_config_path
+from utils.path_utils import get_config_path
 
 class ConfigManager:
     def __init__(self, config_filename: str = 'config_template.yaml'):

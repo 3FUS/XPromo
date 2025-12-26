@@ -945,23 +945,67 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                 {'table': 'PRC_DEAL_ITEM', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
                  "data": PRC_DEAL_ITEM})
 
-            # 处理字段测试数据
-            serial_number = 1
+            from collections import defaultdict
+
+            grouped_items = defaultdict(list)
             for item in promotion_item_segments_data:
-                include = 'EQUAL' if item['include'] else 'NOT_EQUAL'
-                item_type = 1 if item['item_type'] == 'Condition' else 2
-                if item_set in [1, 0] and item_type != 1:
-                    continue
-                DEAL_ITEM_TEST = {
-                    **promotion_mapping["DEAL_ITEM_TEST"],
-                    "deal_id": promotion_id,
-                    "item_ordinal": item['set_id'],
-                    "item_condition_group": serial_number,
-                    "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
-                    "match_rule": include
-                }
-                PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-                serial_number += 1
+                grouped_items[item['set_id']].append(item)
+
+            for set_id in sorted(grouped_items.keys()):
+                equal_items = [item for item in grouped_items[set_id] if item['include'] == 1]
+                serial_number = 1
+                for item in equal_items:
+
+                    item_condition_seq = 1
+                    item_type = 1 if item['item_type'] == 'Condition' else 2
+                    if item_set in [1, 0] and item_type != 1:
+                        continue
+                    DEAL_ITEM_TEST = {
+                        **promotion_mapping["DEAL_ITEM_TEST"],
+                        "deal_id": promotion_id,
+                        "item_ordinal": item['set_id'],
+                        "item_condition_group": serial_number,
+                        "item_condition_seq": item_condition_seq,
+                        "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
+                        "match_rule": 'EQUAL'
+                    }
+                    PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
+
+                    not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
+
+                    for not_item in not_equal_items:
+                        item_condition_seq += 1
+                        item_type = 1 if not_item['item_type'] == 'Condition' else 2
+                        if item_set in [1, 0] and item_type != 1:
+                            continue
+                        DEAL_ITEM_TEST = {
+                            **promotion_mapping["DEAL_ITEM_TEST"],
+                            "deal_id": promotion_id,
+                            "item_ordinal": not_item['set_id'],
+                            "item_condition_group": serial_number,
+                            "item_condition_seq": item_condition_seq,
+                            "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
+                            "match_rule": 'NOT_EQUAL'
+                        }
+                        PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
+                    serial_number += 1
+            # serial_number = 1
+            # for item in promotion_item_segments_data:
+            #     include = 'EQUAL' if item['include'] else 'NOT_EQUAL'
+            #     item_type = 1 if item['item_type'] == 'Condition' else 2
+            #     if item_set in [1, 0] and item_type != 1:
+            #         continue
+            #     DEAL_ITEM_TEST = {
+            #         **promotion_mapping["DEAL_ITEM_TEST"],
+            #         "deal_id": promotion_id,
+            #         "item_ordinal": item['set_id'],
+            #         "item_condition_group": serial_number,
+            #         "item_condition_seq":1,
+            #         "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
+            #         "match_rule": include
+            #     }
+            #     PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
+            #     serial_number += 1
 
             data_detail.append(
                 {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],

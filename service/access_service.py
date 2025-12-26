@@ -21,7 +21,10 @@ class FixedChar(TypeDecorator):
 
 
 async def verify_password(session: Session, user_code: str, user_password: str) -> bool:
-    result = session.query(SysUser.user_password).filter(SysUser.user_code == user_code).first()
+    result = session.query(SysUser.user_password).filter(
+        SysUser.user_code == user_code,
+        SysUser.user_status == 'active'
+    ).first()
     if not result:
         return False
     hashed_password = result[0]
@@ -83,6 +86,7 @@ async def change_user_password(session: Session, user_code: str, old_password: s
 
 
 async def delete_user_by_code(session: Session, user_code: str):
+    session.query(SysUserRole).filter(SysUserRole.user_code == user_code).delete(synchronize_session=False)
     user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
     if user:
         session.delete(user)
@@ -92,6 +96,7 @@ async def delete_user_by_code(session: Session, user_code: str):
 
 
 async def delete_role_by_code(session: Session, role_code: str):
+    session.query(SysUserRole).filter(SysUserRole.role_code == role_code).delete(synchronize_session=False)
     role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
     if role:
         session.delete(role)
@@ -337,7 +342,12 @@ async def update_role_status(session, role_code, role_status):
 
 async def get_permissions_with_user(session: Session, user_code: str):
     # 获取用户的所有角色
-    user_roles = session.query(SysUserRole.role_code).filter(SysUserRole.user_code == user_code).all()
+    user_roles = session.query(SysUserRole.role_code).join(
+        SysRole, SysRole.role_code == SysUserRole.role_code
+    ).filter(
+        SysUserRole.user_code == user_code,
+        SysRole.role_status == 'active'
+    ).all()
     if not user_roles:
         raise ValueError("User has no roles assigned")
 
@@ -426,7 +436,7 @@ async def get_permissions_with_role(session: Session, role_code: str):
         }
 
         result_menus.append(result_menu)
-    org_data = [] if role_code is None else await get_org_permissions_with_role(session, role_code)
+    org_data = [] if role_code is None else await get_org_permissions_with_role(session, [role_code])
     return {
         "code": 200,
         "role": role,
@@ -486,13 +496,15 @@ async def batch_update_role_org_permissions(session: Session, role_code: str, or
         raise ValueError(f"Failed to update org permissions: {str(e)}")
 
 
-async def get_org_permissions_with_role(session: Session, role_code: str):
+async def get_org_permissions_with_role(session: Session, role_code: list):
     try:
-        org_records = session.query(SysRoleOrgPermission).filter(
-            SysRoleOrgPermission.role_code == role_code
-        ).all()
+        org_records = session.query(
+            SysRoleOrgPermission.org_code,
+            SysRoleOrgPermission.org_value
+        ).filter(
+            SysRoleOrgPermission.role_code.in_(role_code)
+        ).distinct().all()
 
-        # 拼接 org_code 和 org_value
         return [f"{record.org_code}:{record.org_value}" for record in org_records]
 
     except Exception as e:
@@ -642,19 +654,35 @@ def filter_permission_nodes(node):
     return node.has_permission or len(valid_children) > 0
 
 
-async def get_max_permission_nodes(session: Session, role_code: str):
-    permission_strings = await get_org_permissions_with_role(session, role_code)
+async def get_max_permission_nodes(session: Session, user_code: str):
+    app_logger.info(f"Starting to get max permission nodes for role_code: {user_code}")
 
-    raw_permissions = {
-        tuple(ps.split(":", 1)) for ps in permission_strings if ":" in ps
-    }
+    user_roles = session.query(SysUserRole.role_code).join(
+        SysRole, SysRole.role_code == SysUserRole.role_code
+    ).filter(
+        SysUserRole.user_code == user_code,
+        SysRole.role_status == 'active'
+    ).all()
+    if not user_roles:
+        raise ValueError("User has no roles assigned")
 
-    resolved_permissions = resolve_permissions_with_inheritance(session, raw_permissions)
+    role_codes = [ur.role_code for ur in user_roles]
+    try:
+        permission_strings = await get_org_permissions_with_role(session, role_codes)
+        app_logger.debug(f"Retrieved {len(permission_strings)} permission strings for role {role_codes}")
 
-    all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+        raw_permissions = {
+            tuple(ps.split(":", 1)) for ps in permission_strings if ":" in ps
+        }
+        app_logger.debug(f"Parsed {len(raw_permissions)} raw permissions from permission strings")
 
-    tree_roots = build_generic_tree(
-        [
+        resolved_permissions = resolve_permissions_with_inheritance(session, raw_permissions)
+        app_logger.debug(f"Resolved {len(resolved_permissions)} permissions with inheritance")
+
+        all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+        app_logger.debug(f"Retrieved {len(all_nodes)} organization hierarchy nodes")
+
+        flat_data = [
             {
                 "org_code": node.ORG_CODE,
                 "org_value": node.ORG_VALUE,
@@ -662,13 +690,25 @@ async def get_max_permission_nodes(session: Session, role_code: str):
                 "parent_value": node.PARENT_VALUE or ""
             }
             for node in all_nodes
-        ],
-        lambda code, value: OrgNode(code, value)
-    )
+        ]
+        app_logger.debug(f"Converted {len(flat_data)} nodes to flat data structure")
 
-    for root in tree_roots:
-        mark_permissions_downward(root, resolved_permissions)
+        tree_roots = build_generic_tree(flat_data, lambda code, value: OrgNode(code, value))
+        app_logger.debug(f"Built {len(tree_roots)} tree roots")
 
-    filtered_roots = [root for root in tree_roots if filter_permission_nodes(root)]
+        for root in tree_roots:
+            mark_permissions_downward(root, resolved_permissions)
+        app_logger.debug("Marked permissions downward through the tree")
 
-    return convert_to_tree_data_with_permission(filtered_roots)
+        filtered_roots = [root for root in tree_roots if filter_permission_nodes(root)]
+        app_logger.debug(f"Filtered to {len(filtered_roots)} roots after permission filtering")
+
+        result = convert_to_tree_data_with_permission(filtered_roots)
+        app_logger.info(f"Successfully generated permission tree with {len(result)} root nodes")
+
+        return result
+
+    except Exception as e:
+        app_logger.error(f"Error occurred while getting max permission nodes for role {role_code}: {str(e)}",
+                         exc_info=True)
+        raise
