@@ -9,7 +9,7 @@ from utils.path_utils import get_config_path
 
 def get_engine():
     config_path = get_config_path('database_config.py')
-    # 动态加载配置文件
+
     import importlib.util
     spec = importlib.util.spec_from_file_location("database_config", config_path)
     database_config = importlib.util.module_from_spec(spec)
