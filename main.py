@@ -153,6 +153,7 @@ async def authenticate_user(username: str, password: str, session):
                 "configuration": user_info['configuration'], "user_status": user_info['user_status']}
     return None
 
+
 #
 # async def get_location_detail_by_promotionId(promotion_id: int, session=Depends(get_db)) -> dict:
 #     app_logger.info(f"[get_location_detail_by_promotionId] 开始获取促销位置详情, promotion_id: {promotion_id}")
@@ -1017,5 +1018,5 @@ async def read_promotion_dashboard(
 if __name__ == '__main__':
     import uvicorn
 
-    port = dict_config.get('SERVER_PORT', 8000)
+    port = app_config.dict_config.get('SERVER_PORT', 8000)
     uvicorn.run(app, host="0.0.0.0", port=8000)
