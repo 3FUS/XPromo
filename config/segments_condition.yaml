@@ -1,4 +1,8 @@
 item:
+  - condition_name: "All Item"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["select distinct level_value, level_value from itm_item_prices where level_value is not null and level_code = 'SALESORG'"]
   - condition_name: "DEPARTMENT"
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
@@ -6,14 +10,11 @@ item:
   - condition_name: "SUBDEPARTMENT"
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
-    condition_value: ["SELECT DISTINCT hierarchy_id,description+'('+hierarchy_id+')' description from itm_merch_hierarchy where LEVEL_CODE='SUBDEPARTMENT'"]
+    condition_value: ["SELECT DISTINCT hierarchy_id,description from itm_merch_hierarchy where LEVEL_CODE='SUBDEPARTMENT'"]
   - condition_name: "Brand"
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
     condition_value: ["select DISTINCT vendor,vendor from itm_item_options where vendor is not null"]
-  - condition_name: "PRICE"
-    condition_type: ['=', '<>', '>', '<', 'between']
-    value_type: "number"
   - condition_name: "STYLE"
     condition_type: ['=', 'include']
     value_type: "string"
@@ -64,10 +65,12 @@ condition_name_mapping:
     "DEPARTMENT": "merch_level_1"
     "SUBDEPARTMENT": "merch_level_2"
     "PRICE": "list_price"
+    "Brand": "vendor"
   location:
     "City": "city"
     "Country": "country"
     "Location ID": "rtl_loc_id"
+    "State": "state"
   customer:
     "Gender": "gender"
     "VIP TYPE": "party_typcode"

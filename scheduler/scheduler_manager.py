@@ -1,6 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.executors.asyncio import AsyncIOExecutor  # 使用异步执行器
+from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.triggers.cron import CronTrigger
 from utils.segment_etl import run_segment_cleaning
 from utils.logger import app_logger
@@ -17,7 +17,7 @@ class SchedulerManager:
             'default': MemoryJobStore()
         }
         executors = {
-            'default': AsyncIOExecutor()  # 使用异步执行器
+            'default': AsyncIOExecutor()
         }
         job_defaults = {
             'coalesce': False,
@@ -36,7 +36,7 @@ class SchedulerManager:
             self.scheduler.start()
             app_logger.info("Scheduler started successfully.")
             self.scheduler.add_job(
-                run_segment_cleaning,  # 无参数调用，执行所有当前时间需要的 segments
+                run_segment_cleaning,
                 'interval',
                 minutes=1,
                 id='segment_cleaning_job',

@@ -2,14 +2,14 @@
 from fastapi import APIRouter, Depends
 from utils.logger import app_logger
 from utils.config_manager import config_manager
-
+from core.security import get_current_user
 router = APIRouter(prefix="/configuration", tags=["configuration"])
 
 
 CONFIG_FILE_PATH = "config/config_template.yaml"
 
 @router.get("/configuration")
-async def get_configuration_json():
+async def get_configuration_json(user_id=Depends(get_current_user)):
     """
     获取配置文件内容（JSON格式）
     """
@@ -22,7 +22,7 @@ async def get_configuration_json():
 
 
 @router.post("/configuration")
-async def update_configuration_json(config_data: dict):
+async def update_configuration_json(config_data: dict,user_id=Depends(get_current_user)):
     """
     更新配置文件（JSON格式）
     """

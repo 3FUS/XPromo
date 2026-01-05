@@ -9,7 +9,7 @@ from utils.path_utils import get_config_path
 
 def get_engine():
     config_path = get_config_path('database_config.py')
-
+    # 动态加载配置文件
     import importlib.util
     spec = importlib.util.spec_from_file_location("database_config", config_path)
     database_config = importlib.util.module_from_spec(spec)
@@ -63,7 +63,7 @@ def get_engine():
                 "&login_timeout=30"
             )
 
-            app_logger.info(f"Creating SQL Server connection_string: {connection_string}")
+            # app_logger.info(f"Creating SQL Server connection_string: {connection_string}")
 
             # connection_string = (
             #     f'mssql+pyodbc://{db_config["user"]}:{db_config["password"]}'
@@ -188,10 +188,22 @@ def get_db():
     finally:
         db.close()
 
+def init_default_data():
+    """初始化默认数据"""
+    from service.init_service import init_system_data
+    db = create_session()
+    try:
+        init_system_data(db)
+    except Exception as e:
+        app_logger.error(f"Failed to initialize system data: {str(e)}")
+        raise
+    finally:
+        db.close()
 
 try:
     Base.metadata.create_all(get_engine())
     app_logger.info("Database tables created/verified successfully.")
+    init_default_data()
 except Exception as e:
     app_logger.error(f"Failed to create/verify database tables: {str(e)}")
     app_logger.exception("Detailed traceback for table creation error:")

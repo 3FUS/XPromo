@@ -596,6 +596,8 @@ async def get_segments_item_detail(session, segment_id=None, key_word=None, page
     query = session.query(SegmentsItemDetail)
     if segment_id:
         query = query.filter(SegmentsItemDetail.segment_id == segment_id)
+    else:
+        query = query.filter(SegmentsItemDetail.segment_id == -1)
     if key_word:
         key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
         query = query.filter(
@@ -608,7 +610,7 @@ async def get_segments_item_detail(session, segment_id=None, key_word=None, page
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all() if page_size > 0 else query.all()
     return {
-        "total": total,
+        "total": total if total else 0,
         "page": page,
         "page_size": page_size,
         "data": items
@@ -619,6 +621,8 @@ async def get_setgments_location_detail(session, segment_id, key_word=None, page
     query = session.query(SegmentsLocationDetail)
     if segment_id:
         query = query.filter(SegmentsLocationDetail.segment_id == segment_id)
+    else:
+        query = query.filter(SegmentsLocationDetail.segment_id == -1)
     if key_word:
         key_word = f"%{key_word}%"
         query = query.filter(
@@ -641,6 +645,8 @@ async def get_segments_customer_detail(session, segment_id, key_word=None, page=
     query = session.query(SegmentsCustomerDetail)
     if segment_id:
         query = query.filter(SegmentsCustomerDetail.segment_id == segment_id)
+    else:
+        query = query.filter(SegmentsCustomerDetail.segment_id == -1)
     if key_word:
         key_word = f"%{key_word}%"
         query = query.filter(

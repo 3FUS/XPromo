@@ -15,7 +15,7 @@ en:
   file_size_exceeded: "File size exceeds the maximum allowed limit."
   uploaded_file_empty: "Uploaded file is empty."
   excel_parse_failed: "Failed to parse Excel file."
-  segment_name_exists: "Segment with this name already exists."
+  segment_name_exists: "{name} Segment with this name already exists."
   invalid_segment_type: "Invalid segment type."
   segment_not_found: "Segment not found."
   get_segments_error: "Error Get Segments: {error}"
@@ -36,14 +36,20 @@ en:
   promotion_not_found: "Promotion with id {promotion_id} not found."
   promotion_dashboard_error: "promotion_dashboard: {error}"
   incorrect_credentials: "Incorrect username or password"
+  user_password_empty: "User password cannot be empty"
 
   # 其他消息
+  user_status_error: "User is disabled, please contact administrator"
   no_store_data_export: "No Store data export"
   no_segment_data: "No data found for this segment."
   download_data_error: "Error downloading data: {error}"
+  user_already_exists: "User already exists."
+  user_no_permission: "User does not have the required permissions, please contact administrator"
 
 zh:
   # 成功消息
+  user_already_exists: "该用户已存在。"
+  user_password_empty: "用户密码不能为空"
   export_tag_success: "导出标签成功"
   export_success: "导出成功"
   segment_submitted: "标签提交成功。"
@@ -53,8 +59,11 @@ zh:
   promotion_deleted: "促销删除成功。"
   promotion_status_updated: "促销状态更新成功。"
 
+
   # 错误消息
   incorrect_credentials: "用户名或密码错误"
+  user_no_permission: "该用户还没有相应权限，请联系管理员"
+  user_status_error: "用户被禁用,请联系管理员"
   export_tag_error: "导出标签错误"
   file_size_exceeded: "文件大小超过允许的最大限制。"
   uploaded_file_empty: "上传的文件为空。"
@@ -86,11 +95,61 @@ zh:
   no_segment_data: "未找到此标签的数据。"
   download_data_error: "下载数据错误: {error}"
 
+zh_tw:
+
+  # 成功消息
+  user_already_exists: "該用戶已存在。"
+  user_password_empty: "用戶密碼不能為空"
+  export_tag_success: "匯出標籤成功"
+  export_success: "匯出成功"
+  segment_submitted: "標籤提交成功。"
+  segment_deleted: "標籤刪除成功。"
+  segment_status_updated: "標籤狀態更新成功。"
+  promotion_submitted: "促銷提交成功。"
+  promotion_deleted: "促銷刪除成功。"
+  promotion_status_updated: "促銷狀態更新成功。"
+
+  # 錯誤消息
+  incorrect_credentials: "用戶名或密碼錯誤"
+  user_no_permission: "該用戶還沒有相應權限，請聯繫管理員"
+  user_status_error: "用戶被禁用，請聯繫管理員"
+  export_tag_error: "匯出標籤錯誤"
+  file_size_exceeded: "檔案大小超過允許的最大限制。"
+  uploaded_file_empty: "上傳的檔案為空。"
+  excel_parse_failed: "解析Excel檔案失敗。"
+  segment_name_exists: "標籤名稱已存在。"
+  invalid_segment_type: "無效的標籤類型。"
+  segment_not_found: "未找到標籤。"
+  get_segments_error: "獲取標籤錯誤: {error}"
+  submit_segments_error: "提交標籤錯誤: {error}"
+  segment_in_use: "標籤正在使用中，無法刪除。"
+  delete_segments_error: "刪除標籤錯誤: {error}"
+  read_segments_details_error: "讀取標籤詳情錯誤: {error}"
+  read_store_list_error: "讀取門店列表錯誤: {error}"
+  read_promotion_default_error: "讀取促銷默認值錯誤: {error}"
+  class_id_not_found: "未找到類別ID {class_id}"
+  subclass_id_not_found: "類別 {class_id} 中未找到子類別ID {subclass_id}"
+  submit_promotion_error: "提交促銷錯誤: {error}"
+  promotion_exported_cannot_delete: "促銷已匯出，無法刪除。"
+  read_promotion_error: "讀取促銷錯誤: {error}"
+  import_promotion_segments_failed: "匯入促銷標籤失敗: {error}. 用戶ID: {user_id}, 檔案: {filename}"
+  missing_columns: "缺少欄位: {columns}"
+  no_valid_data: "上傳的檔案中未找到有效數據。"
+  promotion_not_found: "未找到ID為 {promotion_id} 的促銷。"
+  promotion_dashboard_error: "促銷儀表板: {error}"
+
+  # 其他消息
+  no_store_data_export: "無門店數據匯出"
+  no_segment_data: "未找到此標籤的數據。"
+  download_data_error: "下載數據錯誤: {error}"
+
 jp :
   segment_submitted: "セグメントが送信されました。"
   segment_deleted: "セグメントが削除されました。"
   export_tag_success: "タグのエクスポートが成功しました"
   no_store_data_export: "ストアデータのエクスポートなし"
+  user_status_error: "ユーザーが無効化されています。管理者に連絡してください"
+  user_password_empty: "ユーザーパスワードは空です"
 
   promotion_submitted: "プロモーションが送信されました。"
     # 错误消息
@@ -119,4 +178,5 @@ jp :
   no_valid_data: "アップロードされたファイルには有効なデータがありません。"
   promotion_not_found: "ID {promotion_id} のプロモーションが見つかりません。"
   promotion_dashboard_error: "プロモーションダッシュボード: {error}"
-
+  user_already_exists: "ユーザーは既に存在します"
+  user_no_permission: "ユーザーに必要な権限がありません。管理者に連絡してください"

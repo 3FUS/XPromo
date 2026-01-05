@@ -1,6 +1,8 @@
 from datetime import datetime
 
+import pandas as pd
 from sqlalchemy import case, func, text
+from sqlalchemy import and_, or_
 
 from models.model import Promotion, PromotionCondition, PromotionResult, PromotionItemSegments, \
     PromotionLocationSegments, PromotionCustomerSegments, SegmentsItem, SegmentsLocation, SegmentsCustomer, \
@@ -15,7 +17,6 @@ from utils.logger import app_logger
 
 from utils.config_manager import config_manager
 
-# file = open('config/config.yaml', 'r', encoding='utf-8')
 dict_condition = config_manager.get_config()
 
 
@@ -186,7 +187,7 @@ async def create_promotion_result(session: Session, promotion_id: int, promotion
                 set_id=promotion_result.set_id,
                 overlap=promotion_result.overlap,
                 apply_type=promotion_result.apply_type,
-                discount_type=promotion_result.discount_type,
+                discount_type=promotion_result.discount_type if promotion_result.is_active == 1 else None,
                 action_qty=None if promotion_result.action_qty == 0 else promotion_result.action_qty,
                 discount_value=None if promotion_result.is_active == 0 else promotion_result.discount_value,
                 is_active=promotion_result.is_active,
@@ -245,9 +246,10 @@ async def update_promotion_result(session: Session, promotion_id: int, promotion
         if updated_promotion_result:
             updated_promotion_result.overlap = result.overlap
             updated_promotion_result.apply_type = result.apply_type
-            updated_promotion_result.discount_type = result.discount_type
+            updated_promotion_result.discount_type = result.discount_type if result.is_active == 1 else None
             updated_promotion_result.action_qty = None if result.action_qty == 0 else result.action_qty
-            updated_promotion_result.discount_value = result.discount_value
+            updated_promotion_result.discount_value = result.discount_value if result.is_active == 1 else None
+            updated_promotion_result.is_active = result.is_active
             updated_promotion_result.update_time = datetime.now()
             updated_promotion_result.update_user = update_user
     session.commit()
@@ -632,6 +634,78 @@ async def get_promotion_location_detail_by_id_v3(session, promotion_id):
         return []
 
 
+async def get_location_detail_by_promotionId(promotion_id: int, session) -> dict:
+    """
+    获取促销位置详情
+
+    Args:
+        promotion_id: 促销ID
+        session: 数据库会话
+
+    Returns:
+        dict: 包含位置数据、数据类型和终止位置的字典
+    """
+    app_logger.info(f"[get_location_detail_by_promotion_id] 开始获取促销位置详情, promotion_id: {promotion_id}")
+
+    try:
+        # 获取促销位置详情
+        res_location = await get_promotion_location_detail_by_id(session, promotion_id)
+
+        df_locs = pd.DataFrame(res_location)
+
+        if df_locs.empty:
+            app_logger.info(f"[get_location_detail_by_promotion_id], promotion_id: {promotion_id}")
+            res_location = await get_promotion_location_detail_by_id_v2(session, promotion_id)
+            df_locs = pd.DataFrame(res_location)
+            data_type = "hierarchy"
+
+        else:
+            excluded_locs = df_locs[df_locs['include'] == 0]['rtl_loc_id'].unique()
+            data_type = "segment"
+            df_locs = df_locs[~df_locs['rtl_loc_id'].isin(excluded_locs)]
+
+        app_logger.info(f"[get_location_detail_by_promotion_id], df_locs: {df_locs}")
+
+        bef_locs = await get_promotion_location_detail_by_id_v3(session, promotion_id)
+        de_bef_locs = pd.DataFrame(bef_locs)
+
+        app_logger.info(f"[get_location_detail_by_promotion_id], de_bef_locs: {de_bef_locs}")
+
+        if df_locs.empty:
+            termination_locs = de_bef_locs
+        elif not de_bef_locs.empty:
+            termination_locs = de_bef_locs[~de_bef_locs['rtl_loc_id'].isin(df_locs['rtl_loc_id'].unique())]
+        else:
+            termination_locs = pd.DataFrame()
+
+        app_logger.info(f"[get_location_detail_by_promotion_id], termination_locs: {termination_locs}")
+
+        return {"data": df_locs, "data_type": data_type, "termination_locs": termination_locs}
+
+    except Exception as e:
+        app_logger.error(f"[get_location_detail_by_promotion_id] 处理过程中发生错误, promotion_id: {promotion_id}, 错误: {str(e)}",
+                         exc_info=True)
+        return {"data": pd.DataFrame(), "data_type": "unknown", "termination_locs": pd.DataFrame()}
+
+
+async def get_promotionId_by_segmentId(segment_id: int, session):
+    result = session.query(Promotion.promotion_id) \
+        .join(PromotionItemSegments, Promotion.promotion_id == PromotionItemSegments.promotion_id) \
+        .join(SegmentsItem, SegmentsItem.segment_id == PromotionItemSegments.segment_id) \
+        .filter(
+        and_(
+            Promotion.promotion_status == 'active',
+            or_(
+                Promotion.start_date >= datetime.now(),
+                Promotion.end_date >= datetime.now()
+            ),
+            SegmentsItem.segment_id == segment_id
+        )
+    ).distinct(Promotion.promotion_id).all()
+
+    return [{"promotion_id": item.promotion_id} for item in result]
+
+
 async def get_promotion_customer_segments_by_id(session, promotion_id):
     promotion_customer_segments = (session.query(
         SegmentsCustomer.segment_id,
@@ -765,6 +839,23 @@ async def process_promotion_termination(promotion_id: int, session, location_id)
         app_logger.error(f"Error in process_promotion_termination: {str(e)}", exc_info=True)
 
 
+def extract_unique_set_ids(promotion_condition_data):
+    """
+    从 promotion_condition_data 中提取所有唯一的 set_id
+
+    Args:
+        promotion_condition_data: 包含 set_id 属性的对象列表
+
+    Returns:
+        list: 包含唯一 set_id 的字典列表，格式为 [{"set_id": value}, ...]
+    """
+    unique_set_ids = set()
+    for condition in promotion_condition_data:
+        unique_set_ids.add(condition.set_id)
+
+    return [{"set_id": set_id} for set_id in sorted(unique_set_ids)]
+
+
 async def process_promotion_data(promotion_id: int, session, location_id):
     """
     处理促销数据，生成下游系统所需的格式化数据
@@ -842,7 +933,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
             qty_max = promotion_condition_data[0].MaxQty
             MinItemTotal = promotion_condition_data[0].MinItemTotal
 
-        PRC_DEAL, PRC_DEAL_ITEM, PRC_DEAL_FIELD_TEST, PRC_DEAL_TRIG, DSC_COUPON_XREF = [], [], [], [], []
+        PRC_DEAL, PRC_DEAL_ITEM, PRC_DEAL_FIELD_TEST, PRC_DEAL_LOC, PRC_DEAL_TRIG, DSC_COUPON_XREF = [], [], [], [], [], []
 
         # 只处理激活或非激活状态的促销
         if promotion_status in ['active', 'inactive']:
@@ -867,9 +958,19 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                 DEAL['trwide_action'] = discount_type
                 DEAL['trwide_amount'] = discount_value
 
-            PRC_DEAL.append(DEAL)
+            # PRC_DEAL.append(DEAL)
+            set_ids = extract_unique_set_ids(promotion_condition_data)
+            app_logger.debug(f"处理促销条件数据，set_ids: {set_ids},subclass_id :{subclass_id}")
+            if subclass_id == '99':
+                for set_id in set_ids:
+                    deal_copy = DEAL.copy()
+                    deal_copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                    PRC_DEAL.append(deal_copy)
+                    app_logger.debug(f"拆分促销数据，deal_id: {DEAL['deal_id']},set_id:{set_id['set_id']}")
+            else:
+                PRC_DEAL.append(DEAL)
             data_detail.append(
-                {'table': 'PRC_DEAL', 'table_key': ['organization_id', 'deal_id'], "action": "INSERT_AND_UPDATE",
+                {'table': 'PRC_DEAL', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
                  "data": PRC_DEAL})
 
             # 根据item_set类型处理不同的数据结构
@@ -929,7 +1030,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                     if result_data:
                         DEAL_ITEM_0 = {
                             **promotion_mapping["DEAL_ITEM_1"],
-                            "deal_id": promotion_id,
+                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{set_id}",
                             "item_ordinal": set_id,
                             "consumable": 1 if overlap == 0 else 0,
                             "qty_min": condition.MinQty if condition.MinQty is not None else 1,  # 正确：直接访问对象属性
@@ -962,7 +1063,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                         continue
                     DEAL_ITEM_TEST = {
                         **promotion_mapping["DEAL_ITEM_TEST"],
-                        "deal_id": promotion_id,
+                        "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
                         "item_ordinal": item['set_id'],
                         "item_condition_group": serial_number,
                         "item_condition_seq": item_condition_seq,
@@ -989,37 +1090,29 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                         }
                         PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
                     serial_number += 1
-            # serial_number = 1
-            # for item in promotion_item_segments_data:
-            #     include = 'EQUAL' if item['include'] else 'NOT_EQUAL'
-            #     item_type = 1 if item['item_type'] == 'Condition' else 2
-            #     if item_set in [1, 0] and item_type != 1:
-            #         continue
-            #     DEAL_ITEM_TEST = {
-            #         **promotion_mapping["DEAL_ITEM_TEST"],
-            #         "deal_id": promotion_id,
-            #         "item_ordinal": item['set_id'],
-            #         "item_condition_group": serial_number,
-            #         "item_condition_seq":1,
-            #         "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
-            #         "match_rule": include
-            #     }
-            #     PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-            #     serial_number += 1
 
             data_detail.append(
                 {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
                  "action": "DELETE_AND_INSERT",
                  "data": PRC_DEAL_FIELD_TEST})
 
-            # 处理位置数据
+            DEAL_LOC = {
+                **promotion_mapping["PRC_DEAL_LOC"],
+                "deal_id": promotion_id,
+                "rtl_loc_id": location_id
+            }
+
+            if subclass_id == '99':
+                for set_id in set_ids:
+                    DEAL_LOC_Copy = DEAL_LOC.copy()
+                    DEAL_LOC_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                    PRC_DEAL_LOC.append(DEAL_LOC_Copy)
+            else:
+                PRC_DEAL_LOC.append(DEAL_LOC)
+
             data_detail.append(
                 {'table': 'PRC_DEAL_LOC', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
-                 "data": [{
-                     **promotion_mapping["PRC_DEAL_LOC"],
-                     "deal_id": promotion_id,
-                     "rtl_loc_id": location_id
-                 }]})
+                 "data": PRC_DEAL_LOC})
 
             # 处理触发器数据
             for cust in promotion_cust_segments_data:

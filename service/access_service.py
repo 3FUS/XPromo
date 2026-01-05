@@ -22,8 +22,7 @@ class FixedChar(TypeDecorator):
 
 async def verify_password(session: Session, user_code: str, user_password: str) -> bool:
     result = session.query(SysUser.user_password).filter(
-        SysUser.user_code == user_code,
-        SysUser.user_status == 'active'
+        SysUser.user_code == user_code
     ).first()
     if not result:
         return False
@@ -32,11 +31,11 @@ async def verify_password(session: Session, user_code: str, user_password: str) 
 
 
 async def get_sys_user_configuration(session: Session, user_code: str) -> dict:
-    result = session.query(SysUser.configuration, SysUser.user_name, SysUser.user_code).filter(
+    result = session.query(SysUser.configuration, SysUser.user_name, SysUser.user_code, SysUser.user_status).filter(
         SysUser.user_code == user_code).first()
     if not result:
         return {"configuration": 0, "user_name": ""}
-    return {"configuration": result[0], "user_name": result[1], "user_code": result[2]}
+    return {"configuration": result[0], "user_name": result[1], "user_code": result[2], "user_status": result[3]}
 
 
 async def create_sys_user(session: Session, User):
