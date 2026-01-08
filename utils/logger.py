@@ -58,5 +58,4 @@ def setup_logger(name: str, log_file: str, level=logging.INFO):
     return logger
 
 
-# 创建应用日志记录器
 app_logger = setup_logger("app", "logs/promotion.log")
