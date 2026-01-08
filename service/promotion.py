@@ -1120,7 +1120,16 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                     **promotion_mapping["PRC_DEAL_TRIG"],
                     "deal_id": promotion_id,
                     "deal_trigger": f"SEGMENT:{'' if cust['include'] else '~'}{cust['segment_id']}"}
-                PRC_DEAL_TRIG.append(DEAL_TRIG)
+
+                if subclass_id == '99':
+                    for set_id in set_ids:
+                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
+                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
+                else:
+                    PRC_DEAL_TRIG.append(DEAL_LOC)
+
+                # PRC_DEAL_TRIG.append(DEAL_TRIG)
 
             # 处理优惠券数据
             if promotion_type and coupon_code:
@@ -1128,7 +1137,15 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                     **promotion_mapping["PRC_DEAL_TRIG"],
                     "deal_id": promotion_id,
                     "deal_trigger": f"COUPON:INPUT_COUPON:{coupon_code}"}
-                PRC_DEAL_TRIG.append(DEAL_TRIG)
+
+                if subclass_id == '99':
+                    for set_id in set_ids:
+                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
+                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
+                else:
+                    PRC_DEAL_TRIG.append(DEAL_LOC)
+                # PRC_DEAL_TRIG.append(DEAL_TRIG)
 
                 DSC_COUPON_XREF = [{
                     **promotion_mapping["DSC_COUPON_XREF"],
@@ -1145,6 +1162,23 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                     {'table': 'PRC_DEAL_TRIG', 'table_key': ['organization_id', 'deal_id'],
                      "action": "DELETE_AND_INSERT",
                      "data": PRC_DEAL_TRIG})
+            else:
+                DEAL_TRIG = {"organization_id": promotion_mapping["PRC_DEAL_TRIG"]["organization_id"],
+                             "deal_id": promotion_id}
+
+                if subclass_id == '99':
+                    for set_id in set_ids:
+                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
+                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
+                else:
+                    PRC_DEAL_TRIG.append(DEAL_LOC)
+
+                data_detail.append({'table': 'PRC_DEAL_TRIG', 'table_key': ['organization_id', 'deal_id'],
+                                    "action": "DELETE",
+                                    "data": PRC_DEAL_TRIG})
+
+                app_logger.info(f"促销数据无触发器，promotion_id: {promotion_id}")
 
         app_logger.info(f"完成促销数据处理，promotion_id: {promotion_id}, 生成数据项数: {len(data_detail)}")
         return data_detail
