@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from schemas import SysUserSubmit, SysRoleSubmit
+from schemas.schemas import SysUserSubmit, SysRoleSubmit
 from service import get_db
 from core.security import get_current_user
 

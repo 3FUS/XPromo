@@ -11,7 +11,8 @@ from utils.sftp_uploader import upload_mnt_file
 import service
 from models.model import SegmentsItem, SegmentsItemDetail, PromotionItemSegments, PromotionCondition, PromotionResult, \
     PromotionImport
-from schemas import SegmentSubmit, PromotionSubmit
+from schemas.schemas import PromotionSubmit
+from schemas import schemas
 from datetime import datetime, timedelta
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -374,9 +375,9 @@ async def export_promotion(promotion_id: int, session=Depends(get_db),
             sessionId = await create_worker_task(session, df_locs['rtl_loc_id'].tolist(), 'promotion', promotion_id)
             df_termination_locs = locs_data['termination_locs']
             if not df_termination_locs.empty:
-                sessionId = await create_termination_task(session, df_termination_locs['rtl_loc_id'].tolist(),
-                                                          'promotion',
-                                                          promotion_id)
+                await create_termination_task(session, df_termination_locs['rtl_loc_id'].tolist(),
+                                              'promotion',
+                                              promotion_id)
             await update_promotion_export_time(session, promotion_id, export_date, sessionId)
         return {"code": 200, "msg": get_message("export_tag_success", lang)}
     except Exception as e:
@@ -1014,9 +1015,10 @@ async def read_promotion_dashboard(
         app_logger.error(f"promotion_dashboard: {repr(e)}")
         return {'code': 301, "msg": str(e)}
 
-
+#
 if __name__ == '__main__':
     import uvicorn
 
     port = app_config.dict_config.get('SERVER_PORT', 8000)
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

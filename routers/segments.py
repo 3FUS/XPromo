@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, UploadFile, File, HTTPException, status, B
 
 from models.model import SegmentsItem, SegmentsCustomer, SegmentsCustomerDetail, SegmentsLocation, \
     SegmentsLocationDetail, SegmentsItemDetail
-from schemas import SegmentSubmit
+from schemas.schemas import SegmentSubmit
 from service import get_db
 from typing import List, Union
 import io

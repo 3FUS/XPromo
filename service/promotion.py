@@ -608,7 +608,7 @@ async def get_promotion_location_detail_by_id_v2(session, promotion_id):
     resolved_permissions = resolve_permissions_with_inheritance(session, raw_permissions)
 
     store_list = [
-        {"rtl_loc_id": node.ORG_VALUE} for node in all_nodes
+        {"rtl_loc_id": int(node.ORG_VALUE)} for node in all_nodes
         if node.ORG_CODE == 'STORE' and (node.ORG_CODE, node.ORG_VALUE) in resolved_permissions
     ]
 
@@ -648,7 +648,6 @@ async def get_location_detail_by_promotionId(promotion_id: int, session) -> dict
     app_logger.info(f"[get_location_detail_by_promotion_id] 开始获取促销位置详情, promotion_id: {promotion_id}")
 
     try:
-        # 获取促销位置详情
         res_location = await get_promotion_location_detail_by_id(session, promotion_id)
 
         df_locs = pd.DataFrame(res_location)
@@ -673,10 +672,13 @@ async def get_location_detail_by_promotionId(promotion_id: int, session) -> dict
 
         if df_locs.empty:
             termination_locs = de_bef_locs
+            app_logger.info("df_locs is empty")
         elif not de_bef_locs.empty:
             termination_locs = de_bef_locs[~de_bef_locs['rtl_loc_id'].isin(df_locs['rtl_loc_id'].unique())]
+            app_logger.info("get termination_locs")
         else:
             termination_locs = pd.DataFrame()
+            app_logger.info("de_bef_locs and df_locs is empty")
 
         app_logger.info(f"[get_location_detail_by_promotion_id], termination_locs: {termination_locs}")
 

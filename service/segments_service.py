@@ -5,7 +5,7 @@ from models.model import \
 
 from models.model import PromotionItemSegments, PromotionLocationSegments, PromotionCustomerSegments, WorkerTask
 
-from schemas import SegmentsItemCreate, SegmentsItemUpdate, Segment_Type
+from schemas.schemas import SegmentsItemCreate, SegmentsItemUpdate, Segment_Type
 from sqlalchemy.orm import Session
 from datetime import datetime
 from sqlalchemy import text, case, func
