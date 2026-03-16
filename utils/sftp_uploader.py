@@ -2,6 +2,7 @@ import paramiko
 
 from utils.logger import app_logger
 
+
 def upload_file_to_sftp(
         hostname: str,
         port: int,
@@ -70,4 +71,16 @@ def upload_mnt_file(local_path: str, filename: str) -> bool:
         'jacky',
         local_path,
         remote_path
+    )
+
+
+def upload_file_to_sftp(local_path: str, filename: str, remote_path: str = '') -> bool:
+    sftp_remote = f"{remote_path}/{filename}"
+    return upload_file_to_sftp(
+        '192.168.0.32',
+        22,
+        'jacky',
+        'jacky',
+        local_path,
+        sftp_remote
     )

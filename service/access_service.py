@@ -1,4 +1,4 @@
-from sqlalchemy import func
+from sqlalchemy import or_, and_
 from sqlalchemy import func, literal, TypeDecorator
 from sqlalchemy.types import CHAR, String
 from models.model import SysMenu, SysRole, SysUser, SysUserRole, SysRoleMenuPermission, SysMenuPermission, \
@@ -8,7 +8,8 @@ import bcrypt
 from datetime import datetime
 from sqlalchemy.orm import Session
 from service.utils import resolve_permissions_with_inheritance
-
+import random
+import string
 from utils.logger import app_logger
 
 
@@ -83,6 +84,36 @@ async def change_user_password(session: Session, user_code: str, old_password: s
 
     return True
 
+
+async def reset_user_password(session: Session, user_code: str) -> str:
+    """
+    重置用户密码为 6 位随机密码
+    :param session: 数据库会话
+    :param user_code: 用户代码
+    :return: 返回 6 位明文随机密码
+    """
+    # 检查用户是否存在
+    user = session.query(SysUser).filter(SysUser.user_code == user_code).first()
+    if not user:
+        raise ValueError("用户不存在")
+
+    # 生成 6 位随机密码（包含大小写字母和数字）
+    characters = string.ascii_letters + string.digits
+    random_password = ''.join(random.choice(characters) for _ in range(6))
+
+    # 加密密码
+    hashed_password = bcrypt.hashpw(random_password.encode('utf-8'), bcrypt.gensalt())
+
+    # 更新用户密码
+    user.user_password = hashed_password.decode('utf-8')
+    user.update_time = datetime.now()
+
+    session.commit()
+    session.refresh(user)
+
+    app_logger.info(f"Password reset for user {user_code}")
+
+    return random_password
 
 async def delete_user_by_code(session: Session, user_code: str):
     session.query(SysUserRole).filter(SysUserRole.user_code == user_code).delete(synchronize_session=False)
@@ -200,6 +231,7 @@ async def update_sys_user(session: Session, user_code: str, User):
 async def create_sys_role(session: Session, role):
     new_role = SysRole(
         role_code=role.role_code,
+        org_id=role.org_id,
         role_status=role.role_status,
         role_description=role.role_description,
         create_time=datetime.now(),
@@ -218,6 +250,7 @@ async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1,
 
         # 使用提供的SQL逻辑进行查询
         query = session.query(
+            SysRole.org_id,
             SysRole.role_code,
             SysRole.role_description,
             SysRole.role_status,
@@ -225,6 +258,7 @@ async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1,
             func.count(SysUserRole.user_code).label('user_count')
         ).outerjoin(SysUserRole, SysRole.role_code == SysUserRole.role_code) \
             .group_by(
+            SysRole.org_id,
             SysRole.role_code,
             SysRole.role_description,
             SysRole.role_status,
@@ -286,6 +320,7 @@ async def update_sys_role(session: Session, role_code: str, role):
     updated_role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
     if updated_role:
         updated_role.role_status = role.role_status
+        updated_role.org_id = role.org_id
         updated_role.role_description = role.role_description
         updated_role.update_time = role.update_time
         updated_role.update_user = role.update_user
@@ -337,6 +372,50 @@ async def update_role_status(session, role_code, role_status):
         session.commit()
         session.refresh(updated_role)
     return updated_role
+
+
+async def get_org_id_by_user_code(session: Session, user_code: str):
+    query = session.query(SysRole.org_id).join(
+        SysUserRole, SysRole.role_code == SysUserRole.role_code
+    ).filter(
+        SysUserRole.user_code == user_code,
+        SysRole.role_status == 'active'
+    )
+
+    org_ids = query.all()
+
+    # 将查询结果转换为列表格式并去除None值和重复值
+    result = list(set(org_id[0] for org_id in org_ids if org_id[0] is not None))
+
+    return result
+
+
+async def get_user_organizations(session: Session, user_code: str, org_config: dict):
+    # 获取用户关联的组织IDs
+    org_ids = await get_org_id_by_user_code(session, user_code)
+
+    # 从配置中获取所有组织信息
+    organizations = org_config.get('organizations', [])
+
+    # 创建组织ID到组织信息的映射
+    org_mapping = {org['org_id']: org for org in organizations}
+
+    # 构建结果列表，只包含用户有权访问的组织
+    result = []
+    for org_id in org_ids:
+        if org_id in org_mapping:
+            org_info = org_mapping[org_id]
+            result.append({
+                'org_id': org_id,
+                'org_name': org_info.get('org_name', ''),
+                'org_name_zh': org_info.get('org_name_zh', ''),
+                'country_code': org_info.get('country_code', ''),
+                'currency': org_info.get('currency', ''),
+                'timezone': org_info.get('timezone', ''),
+                'active': org_info.get('active', False)
+            })
+
+    return result
 
 
 async def get_permissions_with_user(session: Session, user_code: str):
@@ -521,9 +600,21 @@ def remove_empty_children(node):
     return node
 
 
-async def get_org_hierarchy(session: Session):
+async def get_org_hierarchy(session: Session, org_id=None):
     try:
-        all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+        # org_id = None
+        if org_id is not None:
+            all_nodes = session.query(LOC_ORG_HIERARCHY).filter(
+                or_(
+                    and_(LOC_ORG_HIERARCHY.ORG_CODE == 'SALESORG', LOC_ORG_HIERARCHY.ORG_VALUE == org_id),
+                    and_(LOC_ORG_HIERARCHY.ORG_CODE == 'STORE', LOC_ORG_HIERARCHY.PARENT_VALUE == org_id)
+                )
+            ).all()
+        else:
+            # 如果没有提供org_id，返回所有数据（保持向后兼容）
+            all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+
+        app_logger.info(f"Converting {len(all_nodes)} nodes to flat data structure")
 
         flat_data = [
             {
@@ -535,8 +626,19 @@ async def get_org_hierarchy(session: Session):
             for node in all_nodes
         ]
 
-        tree_data = build_generic_tree(flat_data)
+        app_logger.info(f"Successfully converted to flat data with {len(flat_data)} ,type: {type(flat_data)} items")
+
+        tree_data = build_generic_tree(flat_data, None, org_id)
+        app_logger.info(f"Built tree with {len(tree_data)} root nodes, type: {type(tree_data)}")
+        # if org_id:
+        #     tree_data = [{"title": "*:*",
+        #                   "value": "*:*",
+        #                   "children": tree_data}]
+        app_logger.info(f"Built tree with {len(tree_data)} root nodes")
+
         cleaned_tree = [remove_empty_children(n) for n in tree_data]
+        app_logger.info(f"Tree cleaning completed, final tree has {len(cleaned_tree)} root nodes")
+
         return {
             "code": 200,
             "data": cleaned_tree
@@ -562,7 +664,7 @@ class OrgNode:
         }
 
 
-def build_generic_tree(all_nodes, node_factory=None):
+def build_generic_tree(all_nodes, node_factory=None, org_id=None):
     if node_factory is None:
         def default_node_factory(org_code, org_value):
             return {
@@ -579,6 +681,8 @@ def build_generic_tree(all_nodes, node_factory=None):
         key = (node["org_code"], node["org_value"])
         if key not in node_map:
             node_map[key] = node_factory(node["org_code"], node["org_value"])
+
+    app_logger.debug(f"Created {len(node_map)} unique nodes from {len(all_nodes)} input nodes")
 
     # Step 2: 建立父子关系
     for node in all_nodes:
@@ -601,6 +705,12 @@ def build_generic_tree(all_nodes, node_factory=None):
         parent_key = (node["parent_code"], node["parent_value"]) if node["parent_code"] else None
         if parent_key is None:
             root_nodes.append(node_map[key])
+        if org_id and node["parent_code"] == 'COUNTRY':
+            root_nodes.append(node_map[key])
+
+    app_logger.debug(f"Found {len(root_nodes)} root nodes out of {len(all_nodes)} total nodes")
+    app_logger.info(
+        f"Successfully built generic tree with {len(root_nodes)} root nodes and {len(node_map)} total nodes")
 
     return root_nodes
 
@@ -653,7 +763,7 @@ def filter_permission_nodes(node):
     return node.has_permission or len(valid_children) > 0
 
 
-async def get_max_permission_nodes(session: Session, user_code: str):
+async def get_max_permission_nodes(session: Session, user_code: str, org_id: str = None):
     app_logger.info(f"Starting to get max permission nodes for role_code: {user_code}")
 
     user_roles = session.query(SysUserRole.role_code).join(
@@ -678,7 +788,17 @@ async def get_max_permission_nodes(session: Session, user_code: str):
         resolved_permissions = resolve_permissions_with_inheritance(session, raw_permissions)
         app_logger.debug(f"Resolved {len(resolved_permissions)} permissions with inheritance")
 
-        all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+        if org_id is not None:
+            all_nodes = session.query(LOC_ORG_HIERARCHY).filter(
+                or_(
+                    and_(LOC_ORG_HIERARCHY.ORG_CODE == 'SALESORG', LOC_ORG_HIERARCHY.ORG_VALUE == org_id),
+                    and_(LOC_ORG_HIERARCHY.ORG_CODE == 'STORE', LOC_ORG_HIERARCHY.PARENT_VALUE == org_id)
+                )
+            ).all()
+            app_logger.info(f"Retrieved {len(all_nodes)} organization hierarchy nodes for org_id: {org_id}")
+        else:
+            all_nodes = session.query(LOC_ORG_HIERARCHY).all()
+
         app_logger.debug(f"Retrieved {len(all_nodes)} organization hierarchy nodes")
 
         flat_data = [
@@ -692,9 +812,13 @@ async def get_max_permission_nodes(session: Session, user_code: str):
         ]
         app_logger.debug(f"Converted {len(flat_data)} nodes to flat data structure")
 
-        tree_roots = build_generic_tree(flat_data, lambda code, value: OrgNode(code, value))
+        tree_roots = build_generic_tree(flat_data, lambda code, value: OrgNode(code, value), org_id)
         app_logger.debug(f"Built {len(tree_roots)} tree roots")
 
+        # if org_id:
+        #     tree_roots = [{"title": "*:*",
+        #                    "value": "*:*",
+        #                    "children": tree_roots}]
         for root in tree_roots:
             mark_permissions_downward(root, resolved_permissions)
         app_logger.debug("Marked permissions downward through the tree")
@@ -708,6 +832,6 @@ async def get_max_permission_nodes(session: Session, user_code: str):
         return result
 
     except Exception as e:
-        app_logger.error(f"Error occurred while getting max permission nodes for role {role_code}: {str(e)}",
+        app_logger.error(f"Error occurred while getting max permission nodes for user {user_code}: {str(e)}",
                          exc_info=True)
         raise

@@ -18,6 +18,7 @@ class Segment_Condition(Base):
 
 class Promotion(Base):
     __tablename__ = 'promotions'
+    org_id = Column(String(30))
     promotion_id = Column(Integer, primary_key=True)
     name = Column(NVARCHAR(80), index=True)
     description = Column(NVARCHAR(120))
@@ -31,6 +32,8 @@ class Promotion(Base):
     promotion_type = Column(String(30))
     coupon_code = Column(String(30))
     promotion_status = Column(String(30))
+    price_tag = Column(Integer)
+    stackable = Column(Integer)
     last_export_time = Column(DATETIME)
     last_session_id = Column(Integer)
     create_time = Column(DATETIME)
@@ -44,6 +47,7 @@ class Promotion(Base):
         Index('idx_promotion_last_session_id', 'last_session_id'),
         Index('idx_promotion_dates', 'start_date', 'end_date'),
     )
+
 
 class PromotionCondition(Base):
     __tablename__ = 'promotions_condition'
@@ -65,7 +69,6 @@ class PromotionCondition(Base):
     )
 
 
-
 class PromotionResult(Base):
     __tablename__ = 'promotions_result'
     promotion_id = Column(Integer, primary_key=True)
@@ -83,7 +86,6 @@ class PromotionResult(Base):
         Index('idx_promotion_result_promotion_id', 'promotion_id'),
         Index('idx_promotion_result_set_id', 'set_id'),
     )
-
 
 
 class PromotionCustomerSegments(Base):
@@ -132,7 +134,6 @@ class PromotionLocationSegments(Base):
     )
 
 
-
 class PromotionOrgJoin(Base):
     __tablename__ = 'promotions_org_join'
     promotion_id = Column(Integer, primary_key=True)
@@ -149,7 +150,6 @@ class PromotionOrgJoin(Base):
     )
 
 
-
 class PromotionImport(Base):
     __tablename__ = 'promotions_import'
     promotion_id = Column(Integer, primary_key=True)
@@ -164,6 +164,7 @@ class PromotionImport(Base):
 
 class SegmentsCustomer(Base):
     __tablename__ = 'segments_customers'
+    org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
     name = Column(NVARCHAR(30))
     description = Column(NVARCHAR(60))
@@ -195,6 +196,7 @@ class SegmentsCustomerCondition(Base):
 
 class SegmentsItem(Base):
     __tablename__ = 'segments_items'
+    org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
     name = Column(NVARCHAR(30))
     description = Column(NVARCHAR(60))
@@ -237,9 +239,9 @@ class SegmentsItemCondition(Base):
     )
 
 
-
 class SegmentsLocation(Base):
     __tablename__ = 'segments_locations'
+    org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
     name = Column(NVARCHAR(30))
     description = Column(NVARCHAR(60))
@@ -289,6 +291,7 @@ class SegmentsItemDetail(Base):
         Index('idx_segments_item_detail_segment_id', 'segment_id'),
         Index('idx_segments_item_detail_item_id', 'item_id'),
     )
+
 
 class SegmentsLocationDetail(Base):
     __tablename__ = 'segments_location_detail'
@@ -384,6 +387,7 @@ class WorkerTask(Base):
         Index('idx_worker_task_location_id', 'location_id'),
     )
 
+
 class WorkerTerminal(Base):
     __tablename__ = 'worker_terminal'
     location_id = Column(Integer, primary_key=True)
@@ -412,6 +416,7 @@ class SysUser(Base):
 
 class SysRole(Base):
     __tablename__ = 'sys_role'
+    org_id = Column(String(30))
     role_code = Column(String(60), primary_key=True)
     role_description = Column(String(120))
     role_status = Column(String(30))
@@ -476,5 +481,28 @@ class LOC_ORG_HIERARCHY(Base):
     __tablename__ = 'LOC_ORG_HIERARCHY'
     ORG_CODE = Column(String(30), primary_key=True)
     ORG_VALUE = Column(String(60), primary_key=True)
+    DESCRIPTION = Column(String(255))
     PARENT_CODE = Column(String(30))
     PARENT_VALUE = Column(String(60))
+
+
+class SamCompetitorSales(Base):
+    __tablename__ = 'sam_competitorsales'
+    location_id = Column(Integer, primary_key=True, comment="店铺代码")
+    competitor_brand = Column(NVARCHAR(120), primary_key=True, comment="竞争品牌")
+    sale_date = Column(DATETIME, primary_key=True, comment="日期")
+    sales_amount = Column(DECIMAL(12, 2), comment="交易额")
+    reporter = Column(String(60), comment="提报人")
+    report_time = Column(DATETIME, comment="提报时间")
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
+# class PromotionPriceTagSchedule(Base):
+#     __tablename__ = 'promotion_price_tag_schedule'
+#     org_id = Column(String(30), primary_key=True)
+#     schedule_type = Column(String(30))
+#     schedule_value = Column(Integer)
+#     schedule_time = Column(TIME)
+#     create_time = Column(DATETIME)

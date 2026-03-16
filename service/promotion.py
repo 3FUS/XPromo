@@ -40,9 +40,10 @@ def generate_promotion_id(session: Session, sequence_type: str = 'promotion'):
 
 
 # 新增: create_promotion 方法
-async def create_promotion(session: Session, promotion: Promotion, user_id=''):
+async def create_promotion(session: Session, promotion: Promotion, user_id='', org_id=None):
     try:
         new_promotion = Promotion(
+            org_id=org_id,
             promotion_id=generate_promotion_id(session),
             name=promotion.name,
             description=promotion.description,
@@ -61,6 +62,10 @@ async def create_promotion(session: Session, promotion: Promotion, user_id=''):
             new_promotion.subclass_id = promotion.subclass_id
         if promotion.coupon_code:
             new_promotion.coupon_code = promotion.coupon_code
+        if hasattr(promotion, 'price_tag'):
+            new_promotion.price_tag = promotion.price_tag
+        if hasattr(promotion, 'stackable'):
+            new_promotion.stackable = promotion.stackable
         session.add(new_promotion)
         session.commit()
         session.refresh(new_promotion)
@@ -89,6 +94,16 @@ async def update_promotion(session: Session, promotion_data: Promotion, user_id=
             else:
                 updated_promotion.coupon_code = None
             updated_promotion.iteration_cap = promotion_data.iteration_cap
+
+            if hasattr(promotion_data, 'price_tag') and promotion_data.price_tag is not None:
+                updated_promotion.price_tag = promotion_data.price_tag
+            else:
+                updated_promotion.price_tag = None
+
+            if hasattr(promotion_data, 'stackable') and promotion_data.stackable is not None:
+                updated_promotion.stackable = promotion_data.stackable
+            else:
+                updated_promotion.stackable = None
             updated_promotion.start_date = promotion_data.start_date
             updated_promotion.end_date = promotion_data.end_date
             updated_promotion.update_time = datetime.now()
@@ -388,7 +403,14 @@ def get_class_code_by_id(class_id):
     return class_id_to_code.get(class_id, None)
 
 
-async def get_promotion_list(session, key_word=None, promotion_status=None, page=1, page_size=30):
+def get_subclass_code_by_id(class_id, subclass_id):
+    for item in dict_condition['promotion_template']:
+        if item['class_id'] == class_id and item['subclass_id'] == str(subclass_id):
+            return item['code']
+    return None
+
+
+async def get_promotion_list(session, key_word=None, promotion_status=None, org_id=None, page=1, page_size=30):
     # query = session.query(Promotion)
 
     query = session.query(
@@ -412,6 +434,9 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, page
     if promotion_status != 'ALL':
         query = query.filter(Promotion.promotion_status == promotion_status)
 
+    if org_id:
+        query = query.filter(Promotion.org_id == org_id)
+
     query = query.order_by(Promotion.create_time.desc())
     total = query.count()
     items = query.offset((page - 1) * page_size).limit(page_size).all() if page_size > 0 else query.all()
@@ -429,6 +454,7 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, page
         template = promotion_template_dict.get((item.class_id, item.subclass_id), {})
         online_calculation = template.get('online_calculation', 0)
         import_flag = template.get('import', 0)
+        price_tag = template.get('price_tag', 0)
 
         total_tasks = (count_N or 0) + (count_E or 0) + (count_D or 0)
 
@@ -480,8 +506,10 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, page
             'update_user': item.update_user,
             'time_stats': time_stats,
             'class_code': get_class_code_by_id(item.class_id),
+            'subclass_code': get_subclass_code_by_id(item.class_id, item.subclass_id),
             'online_calculation': online_calculation,
-            'import_flag': import_flag
+            'import_flag': import_flag,
+            'price_tag': price_tag
         })
 
     return {
@@ -905,6 +933,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         class_id = promotion_data.class_id
         subclass_id = promotion_data.subclass_id
         iteration_cap = promotion_data.iteration_cap
+        stackable = promotion_data.stackable
 
         app_logger.debug(f"提取配置信息，class_id: {class_id}, subclass_id: {subclass_id}")
         item_set = PROMOTION_MNT_DEFAULT[class_id][subclass_id].get('item_set', 2)
@@ -935,7 +964,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
             qty_max = promotion_condition_data[0].MaxQty
             MinItemTotal = promotion_condition_data[0].MinItemTotal
 
-        PRC_DEAL, PRC_DEAL_ITEM, PRC_DEAL_FIELD_TEST, PRC_DEAL_LOC, PRC_DEAL_TRIG, DSC_COUPON_XREF = [], [], [], [], [], []
+        PRC_DEAL, PRC_DEAL_P, PRC_DEAL_ITEM, PRC_DEAL_FIELD_TEST, PRC_DEAL_LOC, PRC_DEAL_TRIG, DSC_COUPON_XREF = [], [], [], [], [], [], []
 
         # 只处理激活或非激活状态的促销
         if promotion_status in ['active', 'inactive']:
@@ -963,17 +992,39 @@ async def process_promotion_data(promotion_id: int, session, location_id):
             # PRC_DEAL.append(DEAL)
             set_ids = extract_unique_set_ids(promotion_condition_data)
             app_logger.debug(f"处理促销条件数据，set_ids: {set_ids},subclass_id :{subclass_id}")
+
+            if stackable:
+                DEAL_P = {**promotion_mapping["DEAL_P"],
+                          "deal_id": promotion_id,
+                          "string_value": 'Enable'}
+            else:
+                DEAL_P = {**promotion_mapping["DEAL_P"],
+                          "deal_id": promotion_id,
+                          "string_value": 'Disable'}
+
             if subclass_id == '99':
                 for set_id in set_ids:
                     deal_copy = DEAL.copy()
                     deal_copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
                     PRC_DEAL.append(deal_copy)
+
+                    deal_p_copy = DEAL_P.copy()
+                    deal_p_copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
+                    PRC_DEAL_P.append(deal_p_copy)
+
                     app_logger.debug(f"拆分促销数据，deal_id: {DEAL['deal_id']},set_id:{set_id['set_id']}")
             else:
                 PRC_DEAL.append(DEAL)
+                PRC_DEAL_P.append(DEAL_P)
+
             data_detail.append(
                 {'table': 'PRC_DEAL', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
                  "data": PRC_DEAL})
+
+            data_detail.append(
+                {'table': 'PRC_DEAL_P', 'table_key': ['organization_id', 'deal_id', 'property_code'],
+                 "action": "DELETE_AND_INSERT",
+                 "data": PRC_DEAL_P})
 
             # 根据item_set类型处理不同的数据结构
             if item_set == 1:
@@ -1190,7 +1241,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         raise e
 
 
-async def get_promotion_dashboard(session: Session):
+async def get_promotion_dashboard(session: Session, org_id: str):
     sql = text("""
             SELECT COUNT(DISTINCT a.promotion_id) as 'Total',
 								COUNT(DISTINCT case when end_date<GETDATE() then a.promotion_id ELSE NULL END) AS 'Completed',
@@ -1208,11 +1259,11 @@ async def get_promotion_dashboard(session: Session):
 						INNER JOIN 
 								promotions_result b 
 						ON 
-								a.promotion_id = b.promotion_id WHERE a.promotion_status='active'
+								a.promotion_id = b.promotion_id WHERE a.promotion_status='active' AND a.org_id=:org_id
         """)
 
     try:
-        result = session.execute(sql)
+        result = session.execute(sql, {"org_id": org_id})
         data = result.fetchone()
         if data is None:
             return {"Total": 0, "Completed": 0, "Not_Started": 0, "In_Progress": 0, "Product": 0, "Coupon": 0,

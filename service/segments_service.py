@@ -3,13 +3,15 @@ from models.model import \
     SegmentsLocationCondition, SegmentsCustomer, \
     SegmentsCustomerCondition, SegmentsImport, SegmentsLocationDetail, SegmentsCustomerDetail, PromotionNextSequence
 
-from models.model import PromotionItemSegments, PromotionLocationSegments, PromotionCustomerSegments, WorkerTask
+from models.model import PromotionItemSegments, PromotionLocationSegments, PromotionCustomerSegments, WorkerTask, \
+    LOC_ORG_HIERARCHY
 
 from schemas.schemas import SegmentsItemCreate, SegmentsItemUpdate, Segment_Type
 from sqlalchemy.orm import Session
 from datetime import datetime
 from sqlalchemy import text, case, func
 import yaml
+from utils.logger import app_logger
 
 
 def generate_segment_id(session: Session, sequence_type: str):
@@ -18,7 +20,7 @@ def generate_segment_id(session: Session, sequence_type: str):
 
     if not sequence:
         # 如果 sequence 不存在，创建一个新的记录
-        sequence = PromotionNextSequence(sequence_type=sequence_type, next_sequence=50000)
+        sequence = PromotionNextSequence(sequence_type=sequence_type, next_sequence=50100)
         session.add(sequence)
         session.commit()
         session.refresh(sequence)
@@ -31,24 +33,30 @@ def generate_segment_id(session: Session, sequence_type: str):
     return current_id
 
 
-async def get_item_segment_by_name(session, name=None):
+async def get_item_segment_by_name(session, name=None, org_id=None):
     query = session.query(SegmentsItem)
     if name:
         query = query.filter(SegmentsItem.name == name)
+    if org_id:
+        query = query.filter(SegmentsItem.org_id == org_id)
     return query.all()
 
 
-async def get_customer_segment_by_name(session, name=None):
+async def get_customer_segment_by_name(session, name=None, org_id=None):
     query = session.query(SegmentsCustomer)
     if name:
         query = query.filter(SegmentsCustomer.name == name)
+    if org_id:
+        query = query.filter(SegmentsCustomer.org_id == org_id)
     return query.all()
 
 
-async def get_location_segment_by_name(session, name=None):
+async def get_location_segment_by_name(session, name=None, org_id=None):
     query = session.query(SegmentsLocation)
     if name:
         query = query.filter(SegmentsLocation.name == name)
+    if org_id:
+        query = query.filter(SegmentsLocation.org_id == org_id)
     return query.all()
 
 
@@ -94,8 +102,9 @@ async def get_location_segment_condition_by_id(session, segment_id):
     return query.all()
 
 
-async def create_segment_item(session: Session, item_segment: SegmentsItemCreate, user_id='system'):
+async def create_segment_item(session: Session, item_segment: SegmentsItemCreate, user_id='system', org_id=None):
     new_item_segment = SegmentsItem(
+        org_id=org_id,
         segment_id=generate_segment_id(session, "Item"),  # 添加: 自动生成 segment_id
         name=item_segment.name,
         description=item_segment.description,
@@ -112,8 +121,9 @@ async def create_segment_item(session: Session, item_segment: SegmentsItemCreate
     return new_item_segment
 
 
-async def create_segment_location(session: Session, location_segment, user_id='system'):
+async def create_segment_location(session: Session, location_segment, user_id='system', org_id=None):
     new_location_segment = SegmentsLocation(
+        org_id=org_id,
         segment_id=generate_segment_id(session, "Location"),  # 添加: 自动生成 segment_id
         name=location_segment.name,
         description=location_segment.description,
@@ -129,8 +139,9 @@ async def create_segment_location(session: Session, location_segment, user_id='s
     return new_location_segment
 
 
-async def create_segment_customer(session: Session, customer_segment, user_id='system'):
+async def create_segment_customer(session: Session, customer_segment, user_id='system', org_id=None):
     new_customer_segment = SegmentsCustomer(
+        org_id=org_id,
         segment_id=generate_segment_id(session, "Customer"),  # 添加: 自动生成 segment_id
         name=customer_segment.name,
         description=customer_segment.description,
@@ -447,7 +458,8 @@ async def update_segment_customer_status(session, segment_id, segment_status):
     return updated_segment
 
 
-async def get_segments_item_list(session, key_word=None, segment_status=None, page=1, page_size=30):
+async def get_segments_item_list(session, key_word=None, segment_status=None, org_id=None, list_type=1, page=1,
+                                 page_size=30):
     try:
         base_query = session.query(
             SegmentsItem.segment_id,
@@ -465,18 +477,21 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
         ).outerjoin(
             WorkerTask,
             SegmentsItem.last_session_id == WorkerTask.session_id
-        ).filter(SegmentsItem.public == 1
-                 ).group_by(SegmentsItem.segment_id,
-                            SegmentsItem.name,
-                            SegmentsItem.description,
-                            SegmentsItem.create_type,
-                            SegmentsItem.sub_count,
-                            SegmentsItem.segment_status,
-                            SegmentsItem.create_time,
-                            SegmentsItem.create_user,
-                            SegmentsItem.last_export_time)
+        ).group_by(SegmentsItem.segment_id,
+                   SegmentsItem.name,
+                   SegmentsItem.description,
+                   SegmentsItem.create_type,
+                   SegmentsItem.sub_count,
+                   SegmentsItem.segment_status,
+                   SegmentsItem.create_time,
+                   SegmentsItem.create_user,
+                   SegmentsItem.last_export_time)
 
-        # 应用筛选条件
+        if list_type == 1:
+            base_query = base_query.filter(SegmentsItem.public == 1)
+        elif list_type == 2:
+            base_query = base_query.filter(SegmentsItem.public.in_([1, 2]))
+
         if key_word:
             key_word = f"%{key_word}%"
             base_query = base_query.filter(
@@ -489,6 +504,8 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
         if segment_status != 'ALL':
             base_query = base_query.filter(SegmentsItem.segment_status == segment_status)
 
+        if org_id:
+            base_query = base_query.filter(SegmentsItem.org_id == org_id)
         # 排序
         base_query = base_query.order_by(SegmentsItem.create_time.desc())
 
@@ -504,7 +521,7 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
                 "segment_id": item.segment_id,
                 "name": item.name,
                 "create_type": item.create_type,
-                "sub_count": item.sub_count,
+                "sub_count": '*' if item.name == 'ALL ITEM' else item.sub_count,
                 "segment_status": item.segment_status,
                 "description": item.description,
                 "create_time": item.create_time.strftime('%Y-%m-%d %H:%M'),
@@ -528,7 +545,7 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, pa
         raise RuntimeError(f"Database query failed: {e}") from e
 
 
-async def get_segments_location_list(session, key_word=None, segment_status=None, page=1, page_size=30):
+async def get_segments_location_list(session, key_word=None, segment_status=None, org_id=None, page=1, page_size=30):
     query = session.query(SegmentsLocation)
     if key_word:
         key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
@@ -541,6 +558,9 @@ async def get_segments_location_list(session, key_word=None, segment_status=None
 
     if segment_status != 'ALL':
         query = query.filter(SegmentsLocation.segment_status == segment_status)
+
+    if org_id:
+        query = query.filter(SegmentsLocation.org_id == org_id)
 
     query = query.order_by(SegmentsLocation.create_time.desc())
 
@@ -560,7 +580,7 @@ async def get_segments_location_list(session, key_word=None, segment_status=None
     }
 
 
-async def get_segments_customer_list(session, key_word=None, segment_status=None, page=1, page_size=30):
+async def get_segments_customer_list(session, key_word=None, segment_status=None, org_id=None, page=1, page_size=30):
     query = session.query(SegmentsCustomer)
     if key_word:
         key_word = f"%{key_word}%"  # 添加通配符以支持模糊查询
@@ -573,6 +593,9 @@ async def get_segments_customer_list(session, key_word=None, segment_status=None
 
     if segment_status != 'ALL':
         query = query.filter(SegmentsCustomer.segment_status == segment_status)
+
+    if org_id:
+        query = query.filter(SegmentsCustomer.org_id == org_id)
 
     query = query.order_by(SegmentsCustomer.create_time.desc())
 
@@ -889,18 +912,39 @@ async def get_customer_segments_in_use_by_id(session, segment_id):
     return result
 
 
-async def get_store_list(session, key_word=None, page=1, page_size=40):
-    query = session.query(SegmentsLocationDetail.rtl_loc_id, SegmentsLocationDetail.store_name)
+async def get_store_list_by_org_id(session, key_word=None, org_id=None, page=1, page_size=40):
+    # 使用 LOC_ORG_HIERARCHY 模型查询门店列表
+    app_logger.info(
+        f"Starting to fetch store list with parameters: key_word={key_word}, org_id={org_id}, page={page}, page_size={page_size}")
+    query = session.query(LOC_ORG_HIERARCHY.ORG_VALUE, LOC_ORG_HIERARCHY.DESCRIPTION).filter(
+        LOC_ORG_HIERARCHY.ORG_CODE == 'STORE'
+    )
+
+    if org_id:
+        query = query.filter(LOC_ORG_HIERARCHY.PARENT_VALUE == org_id)
+
+    # 如果提供了关键词搜索，则添加模糊查询条件
     if key_word:
         key_word = f"%{key_word}%"
         query = query.filter(
-            (SegmentsLocationDetail.rtl_loc_id.like(key_word)) |
-            (SegmentsLocationDetail.store_name.like(key_word))
+            (LOC_ORG_HIERARCHY.ORG_VALUE.like(key_word)) |
+            (LOC_ORG_HIERARCHY.DESCRIPTION.like(key_word))
         )
-    query = query.distinct().order_by(SegmentsLocationDetail.rtl_loc_id.desc())
+
+    query = query.order_by(LOC_ORG_HIERARCHY.ORG_VALUE.desc())
     total = query.count()
+    app_logger.info(f"Total number of stores found: {total}")
+    # 分页查询
     items = query.offset((page - 1) * page_size).limit(page_size).all() if page_size > 0 else query.all()
-    data = [{"rtl_loc_id": item.rtl_loc_id, "store_name": item.store_name} for item in items]
+
+    data = [
+        {
+            "rtl_loc_id": int(item.ORG_VALUE),  # ORG_VALUE -> rtl_loc_id
+            "store_name": item.DESCRIPTION  # DESCRIPTION -> store_name
+        }
+        for item in items
+    ]
+
     return {
         "total": total,
         "page": page,
@@ -954,7 +998,7 @@ async def process_segment_data(segment_id: int, session):
     return data_detail
 
 
-async def get_segment_item_dashboard(session: Session, segment_type=None):
+async def get_segment_item_dashboard(session: Session, segment_type=None, org_id: str = None):
     if segment_type == Segment_Type.item:
         sql = text("""
             SELECT 
@@ -966,7 +1010,7 @@ async def get_segment_item_dashboard(session: Session, segment_type=None):
             LEFT JOIN 
                 promotions_item_segments b 
             ON 
-                a.segment_id = b.segment_id
+                a.segment_id = b.segment_id where a.org_id=:org_id
         """)
     elif segment_type == Segment_Type.customer:
         sql = text("""
@@ -979,7 +1023,7 @@ async def get_segment_item_dashboard(session: Session, segment_type=None):
             LEFT JOIN 
                 promotions_customer_segments b 
                             ON 
-                a.segment_id = b.segment_id"""
+                a.segment_id = b.segment_id where a.org_id=:org_id"""
                    )
     elif segment_type == Segment_Type.location:
         sql = text("""
@@ -992,10 +1036,10 @@ async def get_segment_item_dashboard(session: Session, segment_type=None):
             LEFT JOIN 
             promotions_location_segments b 
             ON 
-                a.segment_id = b.segment_id"""
+                a.segment_id = b.segment_id where a.org_id=:org_id"""
                    )
     try:
-        result = session.execute(sql)
+        result = session.execute(sql, {"org_id": org_id})
         data = result.fetchone()
         if data is None:
             return {"Total": 0, "Active": 0, "In_Use": 0}

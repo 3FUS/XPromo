@@ -1,8 +1,4 @@
 item:
-  - condition_name: "All Item"
-    condition_type: ['=', '<>', 'include', 'exclude']
-    value_type: "SQL"
-    condition_value: ["select distinct level_value, level_value from itm_item_prices where level_value is not null and level_code = 'SALESORG'"]
   - condition_name: "DEPARTMENT"
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
@@ -15,6 +11,12 @@ item:
     condition_type: ['=', '<>', 'include', 'exclude']
     value_type: "SQL"
     condition_value: ["select DISTINCT vendor,vendor from itm_item_options where vendor is not null"]
+  - condition_name: "MATERIAL"
+    condition_type: ['=', 'include']
+    value_type: "string"
+  - condition_name: "GRID"
+    condition_type: ['=', 'include']
+    value_type: "string"
   - condition_name: "STYLE"
     condition_type: ['=', 'include']
     value_type: "string"
@@ -57,36 +59,3 @@ customer:
     condition_type: [ '=', '<>', 'include', 'exclude' ]
     value_type: "SQL"
     condition_value: [ "SELECT DISTINCT rtl_loc_id,rtl_loc_id from loc_rtl_loc" ]
-
-condition_name_mapping:
-  item:
-    "Item ID": "item_id"
-    "STYLE": "parent_item_id"
-    "DEPARTMENT": "merch_level_1"
-    "SUBDEPARTMENT": "merch_level_2"
-    "PRICE": "list_price"
-    "Brand": "vendor"
-    "MATERIAL": "material"
-    "GRID":  "grid"
-
-  location:
-    "City": "city"
-    "Country": "country"
-    "Location ID": "rtl_loc_id"
-    "State": "state"
-    "Store Type": "location_type"
-
-  customer:
-    "Gender": "gender"
-    "VIP TYPE": "party_typcode"
-    "Telephone": "telephone_number"
-    "SignUp Location": "sign_up_rtl_loc_id"
-    "Birthday": "birth_date"
-
-field_types:
-  item:
-    list_price: float
-  location:
-    "rtl_loc_id": int
-  customer:
-    "birth_date": datatime

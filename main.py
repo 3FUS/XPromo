@@ -25,9 +25,7 @@ from typing import List, Union
 from utils.translator import get_message
 
 from service.segments_service \
-    import create_segment_item, delete_segment_item, update_segment_item, \
-    update_segment_some, get_item_segments_in_use_by_id, delete_segment_location, delete_segment_customer, \
-    get_location_segments_in_use_by_id, get_customer_segments_in_use_by_id, get_store_list, process_segment_data, \
+    import create_segment_item, update_segment_some, process_segment_data, \
     generate_segment_id
 
 from service.promotion import create_promotion, create_promotion_condition, create_promotion_result, \
@@ -43,7 +41,7 @@ from service.promotion import create_promotion, create_promotion_condition, crea
 
 from service.worker import create_worker_task, create_termination_task
 from service.access_service import verify_password, get_sys_user_configuration
-from utils.segment_etl import run_segment_cleaning
+
 from service import get_db
 from utils.config_manager import config_manager
 from utils.upload_utils import validate_and_read_file, _clean_and_standardize_data
@@ -79,21 +77,12 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from utils.config_manager import ConfigManager
+
+config_condition = ConfigManager('segments_condition.yaml')
+
 file = open('config/segments_condition.yaml', 'r', encoding='utf-8')
 dict_condition = yaml.safe_load(file)
-
-# def on_config_update():
-#     global dict_config, directory, Export_Type, PROMOTION_TABLES, template_config
-#     # dict_config = config_manager.get_config("config/config.yaml")
-#     file_config = open('config/config.yaml', 'r', encoding='utf-8')
-#     dict_config = yaml.safe_load(file_config)
-#
-#     template_config = config_manager.get_config()
-#     directory = dict_config['MNT_PATH']
-#     os.makedirs(directory, exist_ok=True)
-#     Export_Type = dict_config['Export_Type']
-#     PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
-
 
 from utils.app_config import app_config, reload_config
 
@@ -110,14 +99,13 @@ from routers.configuration import router as configuration_api_router
 from worker_api.api import router as worker_api_router
 from routers.user import router as user_api_router
 from routers.segments import router as segments_api_router
+from routers.competitorsales import router as competitor_sales_api_router
 
 app.include_router(configuration_api_router)
 app.include_router(worker_api_router, prefix="/worker", tags=["worker"])
 app.include_router(user_api_router, prefix="/user_api")
 app.include_router(segments_api_router, prefix="/promotion_api/segments", tags=["segments"])
-
-# PROMOTION_TABLES = dict_config['PROMOTION_TABLES']
-
+app.include_router(competitor_sales_api_router, prefix="/competitor_api", tags=["competitor"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="promotion_api/token")
 
@@ -155,52 +143,74 @@ async def authenticate_user(username: str, password: str, session):
     return None
 
 
-#
-# async def get_location_detail_by_promotionId(promotion_id: int, session=Depends(get_db)) -> dict:
-#     app_logger.info(f"[get_location_detail_by_promotionId] 开始获取促销位置详情, promotion_id: {promotion_id}")
-#
-#     try:
-#         # 获取促销位置详情
-#         res_location = await get_promotion_location_detail_by_id(session, promotion_id)
-#
-#         df_locs = pd.DataFrame(res_location)
-#
-#         if df_locs.empty:
-#             app_logger.info(f"[get_location_detail_by_promotionId], promotion_id: {promotion_id}")
-#             res_location = await get_promotion_location_detail_by_id_v2(session, promotion_id)
-#             df_locs = pd.DataFrame(res_location)
-#             data_type = "hierarchy"
-#
-#         else:
-#             excluded_locs = df_locs[df_locs['include'] == 0]['rtl_loc_id'].unique()
-#             data_type = "segment"
-#             df_locs = df_locs[~df_locs['rtl_loc_id'].isin(excluded_locs)]
-#
-#         app_logger.info(f"[get_location_detail_by_promotionId], df_locs: {df_locs}")
-#
-#         bef_locs = await get_promotion_location_detail_by_id_v3(session, promotion_id)
-#         de_bef_locs = pd.DataFrame(bef_locs)
-#
-#         app_logger.info(f"[get_location_detail_by_promotionId], de_bef_locs: {de_bef_locs}")
-#
-#         if df_locs.empty:
-#             termination_locs = de_bef_locs
-#         elif not de_bef_locs.empty:
-#             termination_locs = de_bef_locs[~de_bef_locs['rtl_loc_id'].isin(df_locs['rtl_loc_id'].unique())]
-#         else:
-#             termination_locs = pd.DataFrame()
-#         app_logger.info(f"[get_location_detail_by_promotionId], termination_locs: {termination_locs}")
-#
-#         return {"data": df_locs, "data_type": data_type, "termination_locs": termination_locs}
-#
-#     except Exception as e:
-#         app_logger.error(f"[get_location_detail_by_promotionId] 处理过程中发生错误, promotion_id: {promotion_id}, 错误: {str(e)}",
-#                          exc_info=True)
-#         return {"data": pd.DataFrame(), "data_type": "unknown", "termination_locs": pd.DataFrame()}
-#
+@app.get("/promotion_api/organizations")
+async def get_organizations(
+        active_only: bool = Query(True, description="只返回激活的组织"),
+        lang: str = Query("en", description="语言: 'en' 英文, 'zh' 简体中文, 'zh_tw' 繁体中文, 'jp' 日文")
+):
+    """
+    获取组织配置信息
+
+    Args:
+        active_only (bool): 是否只返回激活的组织，默认True
+        lang (str): 返回的语言版本
+        user_id: 当前用户ID
+
+    Returns:
+        dict: 组织配置信息
+    """
+    try:
+        # 读取组织配置文件
+
+        org_config = app_config.org_config
+        app_logger.debug(f"Reading organization configuration file: {org_config}")
+        # 获取组织列表
+        organizations = org_config.get('organizations', [])
+
+        # 根据active_only参数过滤
+        if active_only:
+            organizations = [org for org in organizations if org.get('active', True)]
+
+        # 根据语言偏好处理返回数据
+        processed_orgs = []
+        for org in organizations:
+            processed_org = org.copy()
+
+            # 根据语言设置返回相应的名称
+            if lang == "zh":
+                if 'org_name_zh' in processed_org:
+                    processed_org['org_name'] = processed_org['org_name_zh']
+            elif lang == "zh_tw":
+                if 'org_name_zh_tw' in processed_org:
+                    processed_org['org_name'] = processed_org['org_name_zh_tw']
+            elif lang == "jp":
+                if 'org_name_jp' in processed_org:
+                    processed_org['org_name'] = processed_org['org_name_jp']
+
+            # 移除语言特定字段，避免暴露给前端多余数据
+            processed_org.pop('org_name_zh', None)
+            processed_org.pop('org_name_zh_tw', None)
+            processed_org.pop('org_name_jp', None)
+
+            processed_orgs.append(processed_org)
+
+        return {
+            'code': 200,
+            'organizations': processed_orgs,
+            'total_count': len(processed_orgs)
+        }
+
+    except FileNotFoundError:
+        app_logger.error("Organization config file not found")
+        return {'code': 301, 'msg': 'Organization configuration file not found'}
+    except Exception as e:
+        app_logger.error(f"Error reading organization config: {str(e)}")
+        return {'code': 301, 'msg': f'Error reading organization configuration: {str(e)}'}
+
 
 @app.get("/promotion_api/segments_condition")
 async def read_segments_condition(segment_type: Segment_Type, session=Depends(get_db),
+                                  org_id: str = Query(None, description="组织ID"),
                                   user_id=Depends(get_current_user)):
     """
     获取指定类型的分段条件配置。
@@ -213,7 +223,14 @@ async def read_segments_condition(segment_type: Segment_Type, session=Depends(ge
         :param user_id:
         :param segment_type:
     """
-    condition_list = dict_condition.get(segment_type.value, [])
+    if org_id:
+        # dict_condition = dict_config['ORG_CONDITION'][org_id]
+
+        c_condition = config_condition.get_config(org_id)
+        app_logger.info(f"Reading segments condition for org_id: {c_condition}")
+        condition_list = c_condition.get(segment_type.value, [])
+    else:
+        condition_list = dict_condition.get(segment_type.value, [])
 
     updated_conditions = []
 
@@ -388,8 +405,11 @@ async def export_promotion(promotion_id: int, session=Depends(get_db),
 @app.get("/promotion_api/promotion/promotion_class")
 async def read_promotion_class(
         lang: str = Query("en", description="Language preference: 'en' for English, 'zh' for Chinese"),
+        org_id: str = Query(None, description="ORG ID"),
         user_id=Depends(get_current_user)):
-    p_class = [item.copy() for item in app_config.template_config['promotion_class']]
+    template = app_config.template_config_org[org_id]['promotion_class'] if org_id else app_config.template_config[
+        'promotion_class']
+    p_class = [item.copy() for item in template]
     app_logger.info(f"Promotion class: {p_class}")
 
     # 根据语言偏好设置返回相应的描述
@@ -449,7 +469,8 @@ async def read_promotion_class(
 
 
 @app.get("/promotion_api/promotion/promotion_default")
-async def read_promotion_defult(class_id: str, subclass_id: str = "0", user_id=Depends(get_current_user)):
+async def read_promotion_defult(class_id: str, subclass_id: str = "0", org_id: str = Query(None, description="ORG ID"),
+                                user_id=Depends(get_current_user)):
     try:
         p_default = app_config.template_config['promotion_template_default']
         if p_default:
@@ -463,9 +484,11 @@ async def read_promotion_defult(class_id: str, subclass_id: str = "0", user_id=D
 
 
 @app.get("/promotion_api/promotion/promotion_default_p")
-async def read_promotion_defult_p(class_id: str, subclass_id: str = "0", user_id=Depends(get_current_user)):
+async def read_promotion_defult_p(class_id: str, subclass_id: str = "0",
+                                  org_id: str = Query(None, description="ORG ID"), user_id=Depends(get_current_user)):
     try:
-        p_default = app_config.template_config.get('promotion_template_default_p')
+        p_default = app_config.template_config_org[org_id].get('promotion_template_default_p') if org_id else \
+            app_config.template_config['promotion_template_default_p']
         if p_default:
             # 检查 class_id 是否存在
             if class_id not in p_default:
@@ -505,12 +528,14 @@ async def read_promotion_type(user_id=Depends(get_current_user)):
 @app.get("/promotion_api/promotion/promotion_template")
 async def read_promotion_template(
         class_id: str,
+        org_id: str = Query(None, description="ORG ID"),
         lang: str = Query("en"),
         user_id=Depends(get_current_user)
 ):
     app_logger.info(f"read_promotion_template called with class_id={class_id}, lang={lang}, user_id={user_id}")
 
-    p_template = app_config.template_config['promotion_template']
+    p_template = app_config.template_config_org[org_id].get('promotion_template') if org_id else \
+        app_config.template_config['promotion_template']
     filtered_data = [item.copy() for item in p_template if item['class_id'] == class_id]
 
     # 根据语言偏好设置返回相应的描述
@@ -580,6 +605,7 @@ async def read_promotion_group(user_id=Depends(get_current_user)):
 async def submit_promotion(
         promotionsubmit: PromotionSubmit,
         lang: str = Query("en"),
+        org_id: str = Query(None, description="ORG ID"),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
@@ -599,7 +625,7 @@ async def submit_promotion(
             await delete_promotion_location_segments(session, promotion_id)
             await delete_promotion_customer_segments(session, promotion_id)
         else:
-            new_promotion = await create_promotion(session, promotionsubmit.promotion, user_id)
+            new_promotion = await create_promotion(session, promotionsubmit.promotion, user_id, org_id)
             promotion_id = new_promotion.promotion_id
             # await create_promotion_condition(session, promotion_id, promotionsubmit.promotion,
             #                                  promotionsubmit.promotion_condition)
@@ -667,13 +693,14 @@ async def set_promotion_status(
 async def read_promotion_list(
         key_word: str = None,
         promotion_status: Data_Status = Data_Status.ALL,
+        org_id: str = None,
         page: int = 1,
         page_size: int = 30,
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
 
-        return await get_promotion_list(session, key_word, promotion_status.value, page, page_size)
+        return await get_promotion_list(session, key_word, promotion_status.value, org_id, page, page_size)
     except Exception as e:
         return {'code': 301, "msg": str(e)}
 
@@ -719,6 +746,7 @@ async def import_promotion_segments(
         submit: Union[dict, str, None] = Body(None),
         uFile: UploadFile = File(None),
         preview: bool = Query(False, description="是否为预览模式"),
+        org_id: str = Query(None),
         lang: str = Query("en"),
         session=Depends(get_db),
         user_id=Depends(get_current_user)
@@ -751,7 +779,7 @@ async def import_promotion_segments(
                 await delete_promotion_location_segments(session, promotion_id)
                 await delete_promotion_customer_segments(session, promotion_id)
             else:
-                new_promotion = await create_promotion(session, submit_model.promotion, user_id)
+                new_promotion = await create_promotion(session, submit_model.promotion, user_id, org_id)
                 promotion_id = new_promotion.promotion_id
 
             if submit_model.promotion_customer_segments:
@@ -961,14 +989,16 @@ async def _create_segment_details(session, segment_id, group):
 
 
 @app.get("/promotion_api/promotion/promotion_dashboard")
-async def read_promotion_dashboard(
-        session=Depends(get_db), user_id=Depends(get_current_user)
-):
+async def read_promotion_dashboard(org_id: str = '',
+                                   session=Depends(get_db), user_id=Depends(get_current_user)
+                                   ):
     try:
-        res_promo = await service.promotion.get_promotion_dashboard(session)
-        res_item = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.item)
-        res_location = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.location)
-        res_customer = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.customer)
+        res_promo = await service.promotion.get_promotion_dashboard(session, org_id)
+        res_item = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.item, org_id)
+        res_location = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.location,
+                                                                                 org_id)
+        res_customer = await service.segments_service.get_segment_item_dashboard(session, schemas.Segment_Type.customer,
+                                                                                 org_id)
         app_logger.info(res_item)
         data = {
             "Promotion_Count": {

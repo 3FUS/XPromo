@@ -24,7 +24,7 @@ from service.segments_service import get_item_segment_by_name, get_customer_segm
     delete_segment_schedule, create_segment_schedule, get_item_segments_in_use_by_id, delete_segment_item, \
     get_location_segments_in_use_by_id, delete_segment_location, get_customer_segments_in_use_by_id, \
     delete_segment_customer, update_segment_item_status, update_segment_location_status, update_segment_customer_status, \
-    get_store_list
+    get_store_list_by_org_id
 from utils.segment_etl import run_segment_cleaning
 from utils.translator import get_message
 from utils.upload_utils import validate_and_read_file, standardize_columns
@@ -40,11 +40,12 @@ from starlette.responses import StreamingResponse
 
 
 @router.post("/submit_segment_v2")
-async def upload_segment(submit: Union[dict, str, None] = Body(None),
-                         uFile: UploadFile = File(None),
-                         preview: bool = Query(False, description="是否为预览模式"),
-                         lang: str = Query("en"),
-                         session=Depends(get_db), user_id=Depends(get_current_user)):
+async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
+                            uFile: UploadFile = File(None),
+                            preview: bool = Query(False, description="是否为预览模式"),
+                            org_id: str = Query(None),
+                            lang: str = Query("en"),
+                            session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
         app_logger.info(f"Starting submit_segment with upload_segment: {submit}, preview: {preview}")
 
@@ -102,8 +103,8 @@ async def upload_segment(submit: Union[dict, str, None] = Body(None),
             )
             existing_segment = await get_segment_by_name_func(session, name=name)
             if existing_segment:
-                return {'code': 300, "msg":  get_message("segment_name_exists", lang)}
-            insert_segment = await create_segment_func(session, segment)
+                return {'code': 300, "msg": get_message("segment_name_exists", lang)}
+            insert_segment = await create_segment_func(session, segment, user_id, org_id)
             insert_segment_id = insert_segment.segment_id
 
         sub_count = 0
@@ -144,6 +145,7 @@ async def upload_segment(submit: Union[dict, str, None] = Body(None),
             'segment_id': insert_segment_id,
             'name': name,
             'description': description,
+            'org_id': org_id,
             'segment_status': 'active',
             'create_type': 'import'
         }
@@ -338,16 +340,18 @@ async def read_segments_list(
         segment_type: Segment_Type,
         key_word: str = None,
         segment_status: Data_Status = Data_Status.ALL,
+        org_id: str = Query(None, description="ORG ID"),
+        list_type: int = Query(1, description="列表类型", ge=1),
         page: int = Query(1, description="页码", ge=1),
         page_size: int = Query(30, description="每页数量", ge=1, le=100),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     if segment_type == Segment_Type.item:
-        return await get_segments_item_list(session, key_word, segment_status.value, page, page_size)
+        return await get_segments_item_list(session, key_word, segment_status.value, org_id, list_type, page, page_size)
     elif segment_type == Segment_Type.location:
-        return await get_segments_location_list(session, key_word, segment_status.value, page, page_size)
+        return await get_segments_location_list(session, key_word, segment_status.value, org_id, page, page_size)
     elif segment_type == Segment_Type.customer:
-        return await get_segments_customer_list(session, key_word, segment_status.value, page, page_size)
+        return await get_segments_customer_list(session, key_word, segment_status.value, org_id, page, page_size)
     else:
         return {'code': 300, "msg": "Invalid segment type."}
 
@@ -401,6 +405,7 @@ async def read_segments(
 @router.post("/submit")
 async def submit_segments(
         segment: SegmentSubmit,
+        org_id: str = Query(None, description="ORG ID"),
         lang: str = Query("en"),
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
@@ -414,10 +419,10 @@ async def submit_segments(
                 await delete_segment_item_condition(session, item_segment.segment_id)
                 insert_segment_id = item_segment.segment_id
             else:
-                existing_segment = await get_item_segment_by_name(session, name=item_segment.name)
+                existing_segment = await get_item_segment_by_name(session, name=item_segment.name, org_id=org_id)
                 if existing_segment:
                     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
-                insert_segment = await create_segment_item(session, item_segment, user_id)
+                insert_segment = await create_segment_item(session, item_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
 
             await create_segment_item_condition(session, insert_segment_id, segment.segment_condition)
@@ -428,10 +433,11 @@ async def submit_segments(
                 await update_segment_location(session, location_segment.segment_id, location_segment)
                 await delete_segment_location_condition(session, location_segment.segment_id)
             else:
-                existing_segment = await get_location_segment_by_name(session, name=location_segment.name)
+                existing_segment = await get_location_segment_by_name(session, name=location_segment.name,
+                                                                      org_id=org_id)
                 if existing_segment:
                     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
-                insert_segment = await create_segment_location(session, location_segment, user_id)
+                insert_segment = await create_segment_location(session, location_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
             await create_segment_location_condition(session, insert_segment_id, segment.segment_condition)
         elif segment.segment_type == Segment_Type.customer.value:
@@ -441,10 +447,11 @@ async def submit_segments(
                 await update_segment_customer(session, customer_segment.segment_id, customer_segment)
                 await delete_segment_customer_condition(session, customer_segment.segment_id)
             else:
-                existing_segment = await get_customer_segment_by_name(session, name=customer_segment.name)
+                existing_segment = await get_customer_segment_by_name(session, name=customer_segment.name,
+                                                                      org_id=org_id)
                 if existing_segment:
                     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
-                insert_segment = await create_segment_customer(session, customer_segment, user_id)
+                insert_segment = await create_segment_customer(session, customer_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
             await create_segment_customer_condition(session, insert_segment_id, segment.segment_condition)
         else:
@@ -454,7 +461,7 @@ async def submit_segments(
         await create_segment_schedule(session, insert_segment_id, segment.segment_type.value, segment.segment_schedule)
         if segment.segment.create_type == 'condition':
             await run_segment_cleaning(segment.segment_type.value, insert_segment_id, segment.segment.condition_type,
-                                       session)
+                                       org_id, session)
         return {'code': 200, "segment_id": insert_segment_id, "msg": get_message("segment_submitted", lang)}
     except Exception as e:
         app_logger.error(f"Error Submit Segments: {str(e)}")
@@ -558,11 +565,12 @@ async def read_segments_details(
 
 @router.get("/get_store_list")
 async def read_store_list(key_word: str = None,
+                          org_id: str = Query(None, description="ORG ID"),
                           page: int = 1,
                           page_size: int = 40,
                           session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
-        store_list = await get_store_list(session, key_word, page, page_size)
+        store_list = await get_store_list_by_org_id(session, key_word, org_id, page, page_size)
         return {'code': 200, 'store_list': store_list}
     except Exception as e:
         app_logger.error(f"Error reading store list: {str(e)}")

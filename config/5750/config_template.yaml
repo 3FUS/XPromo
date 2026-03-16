@@ -30,17 +30,7 @@ promotion_class:
     description_zh_tw: 顧客購買特定商品時贈送禮品
     description_jp: 顧客が特定アイテムを購入すると、ギフトが提供されます
     class_id: C
-  - code: Buy X Get Y
-    code_zh: 买X送Y
-    code_zh_tw: 買X送Y
-    code_jp: 購入X個でY個
-    description: >-
-      The purchase of a certain, defined item allows the customer to receive a
-      different item at no cost or a discount
-    description_zh: 购买特定商品可免费获得其他商品或享受折扣
-    description_zh_tw: 購買特定商品可免費獲得其他商品或享受折扣
-    description_jp: 顧客が特定アイテムを購入すると、別のアイテムが無料で提供され、金額が0円か割引が適用されます
-    class_id: D
+
 promotion_template:
   - subclass_id: '1'
     code: Spend X$ or more, get Y$ off
@@ -207,46 +197,7 @@ promotion_template:
     description_zh_tw: 免費商品應用於商品行項目
     description_jp: X個アイテムを購入すると、Y個のアイテムが無料
     class_id: C
-  - subclass_id: '1'
-    code: Purchase every X item(s) get Y% off
-    code_zh: 每购买X件商品打Y折
-    code_zh_tw: 每購買X件商品打Y折
-    code_jp: X個アイテムを購入すると、Y％の割引が適
-    description: Discount percentage is applied to the line items
-    description_zh: 折扣百分比应用于商品行项目
-    description_zh_tw: 折扣百分比應用於商品行項目
-    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
-    class_id: D
-  - subclass_id: '2'
-    code: Purchase X item(s) or more, get Y% off
-    code_zh: 购买X件或以上商品打Y折
-    code_zh_tw: 購買X件或以上商品打Y折
-    code_jp: X個アイテムを購入すると、Y％の割引が適
-    description: Discount percentage is applied to the line items
-    description_zh: 折扣百分比应用于商品行项目
-    description_zh_tw: 折扣百分比應用於商品行項目
-    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
-    class_id: D
-  - subclass_id: '3'
-    code: Purchase A item(s) and B item(s), get Z% off
-    code_zh: 购买A件和B件商品打Z折
-    code_zh_tw: 購買A件和B件商品打Z折
-    code_jp: X個アイテムを購入すると、Y％の割引が適
-    description: Discount percentage is applied to the line items
-    description_zh: 折扣百分比应用于商品行项目
-    description_zh_tw: 折扣百分比應用於商品行項目
-    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
-    class_id: D
-  - subclass_id: '4'
-    code: Purchase A item(s) , B item(s) and C item(s), get Z% off
-    code_zh: 购买A件、B件和C件商品打Z折
-    code_zh_tw: 購買A件、B件和C件商品打Z折
-    code_jp: X個アイテムを購入すると、Y％の割引が適用されます
-    description: Discount percentage is applied to the line items
-    description_zh: 折扣百分比应用于商品行项目
-    description_zh_tw: 折扣百分比應用於商品行項目
-    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
-    class_id: D
+
 promotion_template_default_p:
   A:
     '0':
@@ -404,46 +355,4 @@ promotion_template_default_p:
         - apply_type: Line
           discount_type: PERCENT_OFF
           discount_value: '100'
-      item_set: 2
-  D:
-    '0':
-      result:
-        - discount_type: PERCENT_OFF
-      item_set: 2
-    '1':
-      condition:
-        - condition_type: Quantity
-          threshold_style: Every Quantity
-      result:
-        - apply_type: Line
-          discount_type: PERCENT_OFF
-      item_set: 2
-    '2':
-      condition:
-        - condition_type: Quantity
-      result:
-        - apply_type: Line
-          discount_type: PERCENT_OFF
-      item_set: 2
-    '3':
-      condition:
-        - condition_type: Quantity
-          threshold_style: '>='
-        - condition_type: Quantity
-          threshold_style: '>='
-      result:
-        - apply_type: Line
-          discount_type: PERCENT_OFF
-      item_set: 2
-    '4':
-      condition:
-        - condition_type: Quantity
-          threshold_style: '>='
-        - condition_type: Quantity
-          threshold_style: '>='
-        - condition_type: Quantity
-          threshold_style: '>='
-      result:
-        - apply_type: Line
-          discount_type: PERCENT_OFF
       item_set: 2

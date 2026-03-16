@@ -1,4 +1,3 @@
-# /Users/fu/Downloads/XY/TB/tbcommision/app/core/security.py
 
 from datetime import datetime, timedelta
 from typing import Optional, Union
@@ -13,8 +12,8 @@ SECRET_KEY = "65ec98c51c998e1f4bbdb90b2abf16e63d124087df4f93898da50ebd708f6f1a"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 720
 
-# OAuth2密码流
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="retail_hub_api/token")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="promotion_api/token")
 
 
 def create_access_token(data: dict, expires_delta: timedelta = None):

@@ -98,6 +98,8 @@ class Promotions(BaseModel):
     promotion_group: Optional[int] = Field(None)
     promotion_level: Optional[int] = Field(None)
     coupon_code: Optional[str] = Field(None)
+    price_tag: Optional[int] = Field(None)
+    stackable: Optional[int] = Field(None)
     start_date: datetime
     end_date: datetime
     create_user: str
@@ -197,6 +199,7 @@ class SysUserSubmit(BaseModel):
 
 class SysRoleSubmit(BaseModel):
     submit_type: str = "add"
+    org_id: str="5010"
     role_code: str
     role_description: str
     role_status: str = "active"

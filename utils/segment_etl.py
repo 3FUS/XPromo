@@ -199,18 +199,36 @@ def _insert_details(session, model_class, data_rows, segment_id, field_map, crea
     return len(details)
 
 
-def load_item_data_from_db(segment_type, engine=None):
+def load_item_data_from_db(segment_type, org_id=None, engine=None):
     if engine is None:
         engine = service.get_engine()
     if segment_type == 'item':
-        sql = "SELECT itm_item.item_id,parent_item_id, name,description, list_price, merch_level_1,merch_level_2,merch_level_3,merch_level_4,vendor FROM itm_item left JOIN itm_item_options on itm_item.ORGANIZATION_ID=itm_item_options.organization_id and itm_item.ITEM_ID=itm_item_options.ITEM_ID where item_lvlcode='ITEM'"
+        sql = ("SELECT itm_item.item_id,parent_item_id, name,description, list_price, "
+               "merch_level_1,merch_level_2,merch_level_3,merch_level_4,vendor,"
+               "case  when part_number like '%-%'  then "
+               "SUBSTRING(part_number, 1, CHARINDEX('-', part_number) - 1)  else '' end AS material,"
+               "case  when part_number like '%-%'  then "
+               "SUBSTRING(part_number, CHARINDEX('-', part_number) + 1, LEN(part_number)) else '' end AS grid "
+               "FROM itm_item "
+               "LEFT JOIN itm_item_options ON itm_item.ORGANIZATION_ID=itm_item_options.organization_id "
+               "AND itm_item.ITEM_ID=itm_item_options.ITEM_ID "
+               "INNER JOIN itm_item_prices ON itm_item.ORGANIZATION_ID=itm_item_prices.organization_id "
+               "AND itm_item.ITEM_ID=itm_item_prices.ITEM_ID "
+               "WHERE item_lvlcode='ITEM' "
+               "AND itm_item_prices.level_value=:org_id")
     elif segment_type == 'customer':
-        sql = "SELECT a.party_id, party_typcode, first_name, sign_up_rtl_loc_id,telephone_number,gender,birth_date FROM crm_party a INNER JOIN crm_party_telephone b on a.party_id=b.party_id where telephone_number is not null"
+        sql = ("SELECT a.party_id, party_typcode, first_name, sign_up_rtl_loc_id,telephone_number,gender,birth_date "
+               "FROM crm_party a INNER JOIN crm_party_telephone b on a.party_id=b.party_id "
+               "where telephone_number is not null")
     elif segment_type == 'location':
-        sql = "SELECT * FROM loc_rtl_loc"
+        sql = ("SELECT * FROM loc_rtl_loc WHERE EXISTS "
+               "(SELECT 1 from loc_org_hierarchy "
+               "where loc_org_hierarchy.organization_id=loc_rtl_loc.organization_id "
+               "and loc_org_hierarchy.ORG_VALUE=loc_rtl_loc.rtl_loc_id "
+               "and loc_org_hierarchy.org_code='STORE' and loc_org_hierarchy.parent_value=:org_id)")
     else:
         return pd.DataFrame()
-    chunks = pd.read_sql(sql, engine, chunksize=5000)
+    chunks = pd.read_sql(text(sql), engine, params={"org_id": org_id}, chunksize=5000)
     df = pd.concat(chunks, ignore_index=True)
     df.columns = df.columns.str.lower()
     return df
@@ -318,7 +336,7 @@ async def get_segments_for_current_time(segment_type: str = None):
         return []
 
 
-async def run_segment_cleaning(segment_type=None, segment_id=None, condition_logic='and',
+async def run_segment_cleaning(segment_type=None, segment_id=None, condition_logic='and', org_id=None,
                                session: Optional[Session] = None):
     if segment_id is None:
         # 执行当前时间需要的所有 segments
@@ -329,15 +347,15 @@ async def run_segment_cleaning(segment_type=None, segment_id=None, condition_log
                 segment['segment_id'],
                 segment['segment_type'],
                 segment.get('condition_type', 'and'),
-                session, True
+                session, True, segment.get('org_id', '*'),
             )
     else:
         # 执行特定 segment
-        await _execute_single_segment(segment_id, segment_type, condition_logic, session, False)
+        await _execute_single_segment(segment_id, segment_type, condition_logic, session, False, org_id)
 
 
 async def _execute_single_segment(segment_id: int, segment_type: str, condition_logic: str,
-                                  session: Optional[Session] = None, is_schedule: bool = True):
+                                  session: Optional[Session] = None, is_schedule: bool = True, org_id=None):
     """执行单个 segment 的清理任务"""
     engine = service.get_engine()
     external_session = session is not None
@@ -350,7 +368,7 @@ async def _execute_single_segment(segment_id: int, segment_type: str, condition_
         if not conditions:
             raise ValueError(f"No conditions found for segment_id {segment_id}")
 
-        raw_df = load_item_data_from_db(segment_type, engine)
+        raw_df = load_item_data_from_db(segment_type, org_id, engine)
         cleaned_df = apply_conditions_to_items(segment_type, raw_df, conditions, condition_logic)
 
         if cleaned_df.empty:

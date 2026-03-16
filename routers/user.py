@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Body
 from schemas.schemas import SysUserSubmit, SysRoleSubmit
 from service import get_db
 from core.security import get_current_user
 
 from utils.translator import get_message
+from utils.app_config import app_config
 
 router = APIRouter()
 
@@ -13,7 +14,8 @@ from service.access_service import create_sys_user, create_sys_role, fetch_user_
     update_sys_role, get_user_by_code, get_role_by_code, create_sys_user_role, get_role_by_user_code, \
     update_role_status, update_user_status, get_permissions_with_role, batch_update_role_permissions, \
     get_permissions_with_user, delete_user_by_code, delete_role_by_code, get_org_hierarchy, \
-    batch_update_role_org_permissions, get_max_permission_nodes, change_user_password
+    batch_update_role_org_permissions, get_max_permission_nodes, change_user_password, \
+    get_user_organizations, reset_user_password
 
 
 @router.get("/user/user_list", tags=["user"], description='获取用户列表')
@@ -73,6 +75,18 @@ async def change_password(
     except Exception as e:
         return {"code": 301, "msg": f"密码修改失败: {repr(e)}"}
 
+@router.post("/user/reset_password", tags=["user"], description='重置用户密码为 6 位随机密码')
+async def reset_password(
+        user_code: str = Body(..., embed=True),
+        session=Depends(get_db), lang: str = Query("en"), user_id=Depends(get_current_user)
+):
+    try:
+        plain_password = await reset_user_password(session, user_code)
+        return {"code": 200, "msg": "密码重置成功", "data": {"password": plain_password}}
+    except ValueError as e:
+        return {"code": 301, "msg": str(e)}
+    except Exception as e:
+        return {"code": 301, "msg": f"密码重置失败：{repr(e)}"}
 
 @router.post("/user/role_submit", tags=["user"], description='角色')
 async def submit_role(role: SysRoleSubmit, session=Depends(get_db), user_id=Depends(get_current_user)):
@@ -160,13 +174,15 @@ async def get_role_hierarchical_permissions(role_code: str = '', session=Depends
 
 
 @router.get("/user/user_permissions/", tags=["user"])
-async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_db), lang: str = Query("en"),
+async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_db),
+                                            org_id: str = Query(None, description="ORG ID"),
+                                            lang: str = Query("en"),
                                             user_id=Depends(get_current_user)):
     try:
         result_menus = await get_permissions_with_user(session, user_code)
         if result_menus is None:
             return {"code": 301, "msg": get_message("user_no_permission", lang)}
-        result_org = await get_max_permission_nodes(session, user_code)
+        result_org = await get_max_permission_nodes(session, user_code, org_id)
         return {
             "code": 200,
             "user_code": user_code,
@@ -180,8 +196,46 @@ async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_
 
 
 @router.get("/user/org_hierarchy/", tags=["user"])
-async def get_org_hierarchy_tree(session=Depends(get_db), user_id=Depends(get_current_user)):
+async def get_org_hierarchy_tree(org_id: str = Query(None, description="ORG ID"), session=Depends(get_db),
+                                 user_id=Depends(get_current_user)):
     try:
-        return await get_org_hierarchy(session)
+        return await get_org_hierarchy(session, org_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/user/org_id_by_current_user", tags=["user"])
+async def get_org_id_by_user(
+        lang: str = Query("en", description="语言: 'en' 英文, 'zh' 简体中文"),
+        session=Depends(get_db),
+        user_id=Depends(get_current_user)):
+    try:
+        org_config = app_config.org_config
+
+        # 获取用户组织信息
+        user_orgs = await get_user_organizations(session, user_id, org_config)
+
+        # 根据语言偏好处理返回数据
+        processed_orgs = []
+        for org in user_orgs:
+            processed_org = org.copy()
+
+            # 根据语言设置返回相应的名称
+            if lang == "zh":
+                if 'org_name_zh' in processed_org and processed_org['org_name_zh']:
+                    processed_org['org_name'] = processed_org['org_name_zh']
+            # 可以添加更多语言支持
+
+            # 移除语言特定字段，避免暴露给前端多余数据
+            processed_org.pop('org_name_zh', None)
+
+            processed_orgs.append(processed_org)
+
+        return {
+            'code': 200,
+            'data': processed_orgs,
+            'total_count': len(processed_orgs)
+        }
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -1,0 +1,81 @@
+organizations:
+  - org_id: "5010"
+    org_name: "Singapore Samsonite"
+    org_name_zh: "新加坡Samsonite"
+    org_name_zh_tw: "新加坡Samsonite"
+    org_name_jp: "シンガポールSamsonite"
+    country_code: "SG"
+    currency: "SGD"
+    timezone: "Asia/Singapore"
+    active: false
+
+  - org_id: "5050"
+    org_name: "Malaysia Samsonite"
+    org_name_zh: "马来西亚Samsonite"
+    org_name_zh_tw: "馬來西亞Samsonite"
+    org_name_jp: "マレーシアSamsonite"
+    country_code: "MY"
+    currency: "MYR"
+    timezone: "Asia/Kuala_Lumpur"
+    active: true
+
+  - org_id: "5060"
+    org_name: "Taiwan Samsonite"
+    org_name_zh: "台湾Samsonite"
+    org_name_zh_tw: "台灣Samsonite"
+    org_name_jp: "台湾Samsonite"
+    country_code: "TW"
+    currency: "TWD"
+    timezone: "Asia/Taipei"
+    active: true
+
+  - org_id: "5090"
+    org_name: "Hong Kong Samsonite"
+    org_name_zh: "香港Samsonite"
+    org_name_zh_tw: "香港Samsonite"
+    org_name_jp: "ホンコンSamsonite"
+    country_code: "HK"
+    currency: "HKD"
+    timezone: "Asia/Hong_Kong"
+    active: true
+
+  - org_id: "5080"
+    org_name: "Macau Samsonite"
+    org_name_zh: "澳门Samsonite"
+    org_name_zh_tw: "澳門Samsonite"
+    org_name_jp: "マカオSamsonite"
+    country_code: "MO"
+    currency: "MOP"
+    timezone: "Asia/Macau"
+    active: true
+
+
+  - org_id: "5750"
+    org_name: "Malaysia Tumi"
+    org_name_zh: "马来西亚Tumi"
+    org_name_zh_tw: "馬來西亞Tumi"
+    org_name_jp: "マレーシアTumi"
+    country_code: "MY"
+    currency: "MYR"
+    timezone: "Asia/Kuala_Lumpur"
+    active: true
+
+  - org_id: "5760"
+    org_name: "Taiwan Tumi"
+    org_name_zh: "台湾Tumi"
+    org_name_zh_tw: "台灣Tumi"
+    org_name_jp: "台湾Tumi"
+    country_code: "TW"
+    currency: "TWD"
+    timezone: "Asia/Taipei"
+    active: true
+
+  - org_id: "5790"
+    org_name: "Hong Kong Tumi"
+    org_name_zh: "香港Tumi"
+    org_name_zh_tw: "香港Tumi"
+    org_name_jp: "ホンコンTumi"
+    country_code: "HK"
+    currency: "HKD"
+    timezone: "Asia/Hong_Kong"
+    active: true
