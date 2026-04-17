@@ -5,7 +5,7 @@ from datetime import datetime
 
 class CompetitorSalesBase(BaseModel):
     competitor_brand: str = Field(..., description="竞争品牌", max_length=120)
-    sales_amount: float = Field(..., description="销售金额", gt=0)
+    sales_amount: float = Field(..., description="销售金额")
 
 
 class CompetitorSalesCreate(BaseModel):
