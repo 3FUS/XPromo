@@ -26,9 +26,28 @@ async def verify_password(session: Session, user_code: str, user_password: str) 
         SysUser.user_code == user_code
     ).first()
     if not result:
+        app_logger.warning(f"User {user_code} does not exist")
         return False
+
     hashed_password = result[0]
-    return bcrypt.checkpw(user_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    app_logger.debug(f"Password hash retrieved for user {user_code}: {hashed_password[:20]}...")
+
+    # 验证密码
+    try:
+        password_match = bcrypt.checkpw(user_password.encode('utf-8'), hashed_password.encode('utf-8'))
+        app_logger.info(f"Password verification for user {user_code}: {'Success' if password_match else 'Failed'}")
+
+        if not password_match:
+            app_logger.warning(
+                f"Password mismatch for user {user_code}. Provided password hash does not match stored hash.")
+
+        return password_match
+
+    except Exception as bcrypt_error:
+        app_logger.error(f"bcrypt error during password verification for user {user_code}: {str(bcrypt_error)}")
+        app_logger.error(f"Hashed password format: {hashed_password[:20]}...")
+        app_logger.error(f"Input password length: {len(user_password)}")
+        raise
 
 
 async def get_sys_user_configuration(session: Session, user_code: str) -> dict:
@@ -66,7 +85,11 @@ async def change_user_password(session: Session, user_code: str, old_password: s
     :return: 是否修改成功
     """
     # 验证旧密码是否正确
-    if not await verify_password(session, user_code, old_password):
+    password_valid = await verify_password(session, user_code, old_password)
+    app_logger.info(f"Password verification result for user {user_code}: {'Success' if password_valid else 'Failed'}")
+
+    if not password_valid:
+        app_logger.warning(f"Password verification failed for user {user_code}: incorrect old password provided")
         raise ValueError("原密码错误")
 
     # 获取用户对象
@@ -147,7 +170,21 @@ async def fetch_user_list(session: Session, key_word: str, pageNo: int = 1, page
             SysUser.user_email,
             SysUser.create_time,
             SysUser.user_status
-        ).outerjoin(SysUserRole, SysUser.user_code == SysUserRole.user_code)
+        ).outerjoin(
+            SysUserRole,
+            and_(
+                SysUser.user_code == SysUserRole.user_code,
+                SysUserRole.role_code.in_(
+                    session.query(SysRole.role_code).filter(SysRole.role_status == 'active')
+                )
+            )
+        ).group_by(
+            SysUser.user_code,
+            SysUser.user_name,
+            SysUser.user_email,
+            SysUser.create_time,
+            SysUser.user_status
+        )
 
         # 添加关键词搜索条件
         if key_word:
@@ -177,19 +214,19 @@ async def fetch_user_list(session: Session, key_word: str, pageNo: int = 1, page
         formatted_items = []
         for item in items:
             try:
-                # 使用 _asdict() 方法而不是 __dict__，适用于 SQLAlchemy 查询结果
+
                 item_dict = item._asdict() if hasattr(item, '_asdict') else vars(item)
 
-                # 处理 create_time 字段
                 create_time = item_dict.get('create_time')
+                role_codes = item_dict.get('role_codes')
                 formatted_item = {
                     **item_dict,
+                    'role_codes': role_codes if role_codes is not None else "",
                     'create_time': create_time.strftime('%Y-%m-%d %H:%M') if create_time else None
                 }
                 formatted_items.append(formatted_item)
             except Exception as item_error:
                 app_logger.warning(f"Error processing item: {str(item_error)}, item: {repr(item)}")
-                # 即使单个项目出错也要继续处理其他项目
                 continue
 
         result = {

@@ -24,10 +24,11 @@ item_mapping = condition_name_mapping.get("item", {})
 field_type_config = mapping_config.get("field_types", {})
 
 SEGMENT_FIELD_MAPS = {
-    "item": {"item_id": "item_id", "item_name": "name", "item_description": "description",
-             "item_price": "list_price"},
+    "item": {"item_id": "item_id", "sku": "sku", "item_name": "name", "item_description": "description",
+             "item_department": "merch_level_1"},
     "customer": {"party_id": "party_id", "first_name": "first_name", "cust_phone": "telephone_number"},
-    "location": {"rtl_loc_id": "rtl_loc_id", "store_name": "store_name", "city": "city"}
+    "location": {"rtl_loc_id": "rtl_loc_id", "store_name": "store_name", "city": "city",
+                 "location_type": "location_type"}
 }
 
 SEGMENT_DETAIL_MODELS = {
@@ -204,7 +205,7 @@ def load_item_data_from_db(segment_type, org_id=None, engine=None):
         engine = service.get_engine()
     if segment_type == 'item':
         sql = ("SELECT itm_item.item_id,parent_item_id, name,description, list_price, "
-               "merch_level_1,merch_level_2,merch_level_3,merch_level_4,vendor,"
+               "merch_level_1,merch_level_2,merch_level_3,merch_level_4,vendor,MANUFACTURER_UPC as sku, "
                "case  when part_number like '%-%'  then "
                "SUBSTRING(part_number, 1, CHARINDEX('-', part_number) - 1)  else '' end AS material,"
                "case  when part_number like '%-%'  then "
@@ -212,10 +213,9 @@ def load_item_data_from_db(segment_type, org_id=None, engine=None):
                "FROM itm_item "
                "LEFT JOIN itm_item_options ON itm_item.ORGANIZATION_ID=itm_item_options.organization_id "
                "AND itm_item.ITEM_ID=itm_item_options.ITEM_ID "
-               "INNER JOIN itm_item_prices ON itm_item.ORGANIZATION_ID=itm_item_prices.organization_id "
-               "AND itm_item.ITEM_ID=itm_item_prices.ITEM_ID "
+               "INNER JOIN ITM_ITEM_CROSS_REFERENCE f on itm_item.ORGANIZATION_ID=f.ORGANIZATION_ID and itm_item.ITEM_ID=f.ITEM_ID "
                "WHERE item_lvlcode='ITEM' "
-               "AND itm_item_prices.level_value=:org_id")
+               "AND EXISTS  (SELECT 1 FROM itm_item_prices where  itm_item.ORGANIZATION_ID=itm_item_prices.organization_id AND itm_item.ITEM_ID=itm_item_prices.ITEM_ID and level_value=:org_id )")
     elif segment_type == 'customer':
         sql = ("SELECT a.party_id, party_typcode, first_name, sign_up_rtl_loc_id,telephone_number,gender,birth_date "
                "FROM crm_party a INNER JOIN crm_party_telephone b on a.party_id=b.party_id "
@@ -294,7 +294,8 @@ async def get_segments_for_current_time(segment_type: str = None):
             ss.schedule_value,
             ss.schedule_time,
             s.{config['condition_field']} as condition_type,
-            '{config['type']}' as segment_type
+            '{config['type']}' as segment_type,
+            s.org_id
         FROM {config['table']} s
         INNER JOIN segments_schedule ss ON ss.segment_id = s.segment_id 
             AND ss.segment_type = '{config['type']}'
@@ -324,7 +325,8 @@ async def get_segments_for_current_time(segment_type: str = None):
                     'schedule_value': row[2],
                     'schedule_time': row[3],
                     'condition_type': row[4],
-                    'segment_type': row[5]
+                    'segment_type': row[5],
+                    'org_id': row[6]
                 }
                 segments.append(segment)
 

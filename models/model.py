@@ -276,11 +276,14 @@ class SegmentsItemDetail(Base):
     segment_id = Column(Integer, primary_key=True)
     item_id = Column(String(60), primary_key=True)
     item_name = Column(NVARCHAR(255))
+    sku = Column(String())
     item_description = Column(NVARCHAR(255))
     item_department = Column(String(30))
     item_class = Column(String(30))
     item_sub_class = Column(String(30))
     item_price = Column(DECIMAL(10, 2))
+    error_flag = Column(Integer,
+                        default=0)
     create_type = Column(String(30))
     create_time = Column(DATETIME)
     create_user = Column(String(30))
@@ -299,6 +302,8 @@ class SegmentsLocationDetail(Base):
     rtl_loc_id = Column(Integer, primary_key=True)
     store_name = Column(String(60))
     city = Column(String(30))
+    location_type = Column(String(30))
+    error_flag = Column(Integer, default=0)
     create_type = Column(String(30))
     create_time = Column(DATETIME)
     create_user = Column(String(30))
@@ -486,23 +491,16 @@ class LOC_ORG_HIERARCHY(Base):
     PARENT_VALUE = Column(String(60))
 
 
-class SamCompetitorSales(Base):
-    __tablename__ = 'sam_competitorsales'
-    location_id = Column(Integer, primary_key=True, comment="店铺代码")
-    competitor_brand = Column(NVARCHAR(120), primary_key=True, comment="竞争品牌")
-    sale_date = Column(DATETIME, primary_key=True, comment="日期")
-    sales_amount = Column(DECIMAL(12, 2), comment="交易额")
-    reporter = Column(String(60), comment="提报人")
-    report_time = Column(DATETIME, comment="提报时间")
+class WorkerTaskDataDispatch(Base):
+    __tablename__ = 'worker_task_data_dispatch'
+    dispatch_id = Column(Integer, primary_key=True, autoincrement=True, comment="下发记录ID")
+    table_name = Column(String(100), nullable=False, comment="目标表名")
+    table_key = Column(String(500), nullable=False, comment="表的主键字段，逗号分隔")
+    action = Column(String(30), nullable=False, comment="下发动作：update, delete, insert")
+    data_content = Column(Text, comment="数据内容，JSON格式的列表")
+    record_count = Column(Integer, default=0, comment="数据记录数量")
+    status = Column(String(30), default='active', comment="状态：active-开启, inactive-关闭")
     create_time = Column(DATETIME)
     create_user = Column(String(30))
     update_time = Column(DATETIME)
     update_user = Column(String(30))
-
-# class PromotionPriceTagSchedule(Base):
-#     __tablename__ = 'promotion_price_tag_schedule'
-#     org_id = Column(String(30), primary_key=True)
-#     schedule_type = Column(String(30))
-#     schedule_value = Column(Integer)
-#     schedule_time = Column(TIME)
-#     create_time = Column(DATETIME)

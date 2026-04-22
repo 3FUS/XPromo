@@ -1,4 +1,6 @@
-from models.model import WorkerTask, PromotionNextSequence, WorkerTerminal
+import json
+
+from models.model import WorkerTask, PromotionNextSequence, WorkerTerminal, WorkerTaskDataDispatch
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -108,3 +110,32 @@ async def create_termination_task(session: Session, locs: [], data_type: str, da
     session.commit()
     session.refresh(worker_task)
     return sessionId
+
+
+async def process_data_dispatch_data(dispatch_id: int, session: Session):
+
+    dispatch_record = session.query(WorkerTaskDataDispatch).filter(
+        WorkerTaskDataDispatch.dispatch_id == dispatch_id,
+        WorkerTaskDataDispatch.status == 'active'
+    ).first()
+
+    if not dispatch_record:
+        return []
+
+    try:
+        data_content = json.loads(dispatch_record.data_content) if dispatch_record.data_content else []
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON data_content: {str(e)}")
+
+    # 解析 table_keys，将逗号分隔的字符串转换为列表
+    table_keys_list = [key.strip() for key in dispatch_record.table_key.split(',') if key.strip()]
+
+    # 返回与 process_promotion_data 相同的数据结构
+    return [
+        {
+            'table': dispatch_record.table_name,
+            'table_key': table_keys_list,
+            'action': dispatch_record.action,
+            'data': data_content
+        }
+    ]

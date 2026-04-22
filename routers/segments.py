@@ -27,7 +27,7 @@ from service.segments_service import get_item_segment_by_name, get_customer_segm
     get_store_list_by_org_id
 from utils.segment_etl import run_segment_cleaning
 from utils.translator import get_message
-from utils.upload_utils import validate_and_read_file, standardize_columns
+from utils.upload_utils import validate_and_read_file, standardize_columns, validate_and_enrich_upload_data
 
 from utils.logger import app_logger
 from utils.app_config import app_config
@@ -59,7 +59,7 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
 
         if uFile:
             upload_data = await validate_and_read_file(uFile)
-            upload_data = standardize_columns(upload_data)
+            upload_data = standardize_columns(upload_data, lang)
             file_name = uFile.filename
             if preview:
                 if upload_data.empty:
@@ -72,6 +72,46 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
             upload_data = pd.DataFrame()
 
         segment_type = submit_data.get("segment_type")
+
+        upload_data = await validate_and_enrich_upload_data(upload_data, segment_type, org_id)
+
+        # item_data = load_item_data_from_db(segment_type, org_id)
+        #
+        # # Check for missing item_ids and complete missing fields
+        # if not upload_data.empty and segment_type == 'item':
+        #     # Add a new column to mark errors
+        #     if 'item_id' in upload_data.columns:
+        #         key_column = 'item_id'
+        #     elif 'sku' in upload_data.columns:
+        #         key_column = 'sku'
+        #
+        #     item_data_filtered = item_data[['item_id', 'name', 'sku', 'description', 'merch_level_1']].rename(
+        #         columns={
+        #             'name': 'item_name',
+        #             'description': 'item_description',
+        #             'merch_level_1': 'item_department'
+        #         }
+        #     )
+        #
+        #     upload_data = upload_data.drop_duplicates(subset=key_column, keep='first')
+        #     upload_data = upload_data.merge(item_data_filtered, on=key_column, how='left')
+        #
+        #     upload_data['error_flag'] = 0
+        #     upload_data['error_flag'] = upload_data['error_flag'].astype('Int64')
+        #     upload_data[key_column] = upload_data[key_column].astype(str)
+        #     missing_items = ~upload_data[key_column].isin(item_data[key_column].astype(str))
+        #     upload_data.loc[missing_items, 'error_flag'] = 1
+        # elif not upload_data.empty and segment_type == 'location':
+        #     loc_data_filtered = item_data[['rtl_loc_id', 'store_name', 'location_type', 'city']]
+        #
+        #     upload_data = upload_data.drop_duplicates(subset='rtl_loc_id', keep='first')
+        #     upload_data['rtl_loc_id'] = upload_data['rtl_loc_id'].astype('Int64')
+        #     upload_data = upload_data.merge(loc_data_filtered, on='rtl_loc_id', how='left')
+        #
+        #     upload_data['error_flag'] = 0
+        #     upload_data['error_flag'] = upload_data['error_flag'].astype('Int64')
+        #     missing_items = ~upload_data['rtl_loc_id'].isin(loc_data_filtered['rtl_loc_id'])
+        #     upload_data.loc[missing_items, 'error_flag'] = 1
 
         segment_id = submit_data["segment"].get("segment_id", None)
         name = submit_data["segment"].get("name")
@@ -87,9 +127,12 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
 
         if segment_type not in segment_classes:
             return {'code': 305, "msg": "Invalid segment type."}
+        else:
+            app_logger.info(f"Segment classes: {segment_classes}")
 
         SegmentClass, DetailClass, get_segment_by_name_func, create_segment_func = segment_classes[segment_type]
 
+        app_logger.debug(f"Segment ID: {segment_id}")
         if segment_id:
             insert_segment_id = segment_id
         else:
@@ -102,13 +145,21 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
                 create_type='import'
             )
             existing_segment = await get_segment_by_name_func(session, name=name)
+            app_logger.debug(f"Existing segment: {existing_segment}")
             if existing_segment:
                 return {'code': 300, "msg": get_message("segment_name_exists", lang)}
             insert_segment = await create_segment_func(session, segment, user_id, org_id)
+            app_logger.info(f"Inserted segment: {insert_segment}")
             insert_segment_id = insert_segment.segment_id
 
+        app_logger.debug(f"insert_segment_id : {insert_segment_id}")
         sub_count = 0
+
         if not upload_data.empty:
+            valid_data = upload_data[upload_data['error_flag'] != 1].copy()
+            app_logger.info(f"Valid data: {valid_data}")
+            error_count = upload_data[upload_data['error_flag'] == 1].shape[0]
+
             delete_detail_func_map = {
                 "item": delete_segment_item_detail,
                 "customer": delete_segment_customer_detail,
@@ -122,16 +173,16 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
                 "customer": create_customer_segments_detail,
                 "location": create_location_segments_detail
             }
-
+            app_logger.info(f"Uploading {segment_type} segment details...")
             detail_creator = detail_creation_map[segment_type]
             details = [
                 DetailClass(segment_id=insert_segment_id, **row.to_dict())
-                for _, row in upload_data.iterrows()
+                for _, row in valid_data.iterrows()
             ]
             await detail_creator(session, insert_segment_id, details)
-
+            app_logger.info(f"Uploaded {len(details)} {segment_type} segment details.")
             await delete_segment_import(session, segment_id=insert_segment_id, segment_type=segment_type)
-            await create_segment_import(session, insert_segment_id, segment_type, file_name, len(details))
+            await create_segment_import(session, insert_segment_id, segment_type, file_name, len(details), error_count)
             sub_count = len(details)
 
         update_segment_map = {
@@ -158,7 +209,8 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
 
         return {'code': 200, "segment_id": insert_segment_id, "msg": "Segment submitted successfully."}
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        app_logger.error(f"Error submitting segment: {str(e)}")
+        return {'code': 301, "msg": str(e)}
 
 
 @router.get("/download_segments")

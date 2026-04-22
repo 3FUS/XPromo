@@ -696,6 +696,10 @@ async def create_item_segments_detail(session, segment_id, item_segment_details
         db_item_segment_detail = SegmentsItemDetail(
             segment_id=segment_id,
             item_id=item_segment_detail.item_id,
+            sku=item_segment_detail.sku,
+            item_name=item_segment_detail.item_name,
+            item_description=item_segment_detail.item_description,
+            item_department=item_segment_detail.item_department,
             create_time=datetime.now()
         )
         session.add(db_item_segment_detail)
@@ -730,6 +734,9 @@ async def create_location_segments_detail(session, segment_id, location_segment_
         db_location_segment_detail = SegmentsLocationDetail(
             segment_id=segment_id,
             rtl_loc_id=location_segment_detail.rtl_loc_id,
+            store_name=location_segment_detail.store_name,
+            city=location_segment_detail.city,
+            location_type=location_segment_detail.location_type,
             create_time=datetime.now()
         )
         session.add(db_location_segment_detail)
@@ -777,12 +784,13 @@ async def get_segment_import_by_id(session, segment_id, segment_type):
         return query.first()
 
 
-async def create_segment_import(session: Session, segment_id, segment_type, file_name, count_success):
+async def create_segment_import(session: Session, segment_id, segment_type, file_name, count_success,count_fail=0):
     new_segment_import = SegmentsImport(
         segment_id=segment_id,
         segment_type=segment_type,
         file_name=file_name,
         count_success=count_success,
+        count_fail=count_fail,
         create_time=datetime.now()  # 添加: 设置创建时间为当前系统时间
     )
     session.add(new_segment_import)

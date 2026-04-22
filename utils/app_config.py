@@ -85,7 +85,28 @@ class AppConfig:
         }
         return self.dict_config.get(column_mapping.get(segment_type, ''), [])
 
+    def get_sftp_config(self, config_name: str = 'DEFAULT') -> Dict[str, Any]:
+        """
+        获取 SFTP 配置
 
+        Args:
+            config_name: 配置名称，如 'DEFAULT', 'MNT_UPLOAD'
+
+        Returns:
+            包含 SFTP 配置的字典
+        """
+        try:
+            sftp_configs = self.dict_config.get('SFTP_CONFIG', {})
+            config = sftp_configs.get(config_name, sftp_configs.get('DEFAULT', {}))
+
+            if not config:
+                app_logger.warning(f"SFTP config '{config_name}' not found, using DEFAULT")
+                return sftp_configs.get('DEFAULT', {})
+
+            return config
+        except Exception as e:
+            app_logger.error(f"Error getting SFTP config '{config_name}': {str(e)}")
+            return {}
 # 创建全局配置实例
 app_config = AppConfig()
 

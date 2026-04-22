@@ -92,7 +92,7 @@ def get_engine():
         else:
             app_logger.error(f"Unsupported database type: {DB_TYPE}")
             raise ValueError(f"Unsupported database type: {DB_TYPE}")
-
+        timeout = db_config.get("timeout", 30)
         engine = create_engine(
             connection_string,
             poolclass=QueuePool,
@@ -201,7 +201,10 @@ def init_default_data():
         db.close()
 
 try:
-    Base.metadata.create_all(get_engine())
+    engine = get_engine()
+    Base.metadata.create_all(engine)
+    from models.sam_competitor import Base as CustomBase
+    CustomBase.metadata.create_all(engine)
     app_logger.info("Database tables created/verified successfully.")
     init_default_data()
 except Exception as e:

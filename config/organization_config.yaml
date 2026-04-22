@@ -58,7 +58,7 @@ organizations:
     country_code: "MY"
     currency: "MYR"
     timezone: "Asia/Kuala_Lumpur"
-    active: true
+    active: false
 
   - org_id: "5760"
     org_name: "Taiwan Tumi"
@@ -79,3 +79,14 @@ organizations:
     currency: "HKD"
     timezone: "Asia/Hong_Kong"
     active: true
+
+  - org_id: "5780"
+    org_name: "Macau Tumi"
+    org_name_zh: "澳门Tumi"
+    org_name_zh_tw: "澳門Tumi"
+    org_name_jp: "マカオTumi"
+    country_code: "MO"
+    currency: "MOP"
+    timezone: "Asia/Macau"
+    active: true
+

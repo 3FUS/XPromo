@@ -33,6 +33,7 @@ en:
   import_promotion_segments_failed: "import_promotion_segments failed: {error}. User ID: {user_id}, File: {filename}"
   missing_columns: "Missing columns: {columns}"
   no_valid_data: "No valid data found in the uploaded file."
+  no_valid_file: "File format is incorrect, please check the file"
   promotion_not_found: "Promotion with id {promotion_id} not found."
   promotion_dashboard_error: "promotion_dashboard: {error}"
   incorrect_credentials: "Incorrect username or password"
@@ -45,6 +46,9 @@ en:
   download_data_error: "Error downloading data: {error}"
   user_already_exists: "User already exists."
   user_no_permission: "User does not have the required permissions, please contact administrator"
+  status_pending: "Pending"
+  status_done: "Done"
+  status_error: "Error"
 
 zh:
   # 成功消息
@@ -86,6 +90,7 @@ zh:
   import_promotion_segments_failed: "导入促销标签失败: {error}. 用户ID: {user_id}, 文件: {filename}"
   missing_columns: "缺少列: {columns}"
   no_valid_data: "上传的文件中未找到有效数据。"
+  no_valid_file: "文件格式不正确，请检查文件"
   promotion_not_found: "未找到ID为 {promotion_id} 的促销。"
   promotion_dashboard_error: "促销仪表板: {error}"
 
@@ -94,6 +99,9 @@ zh:
   no_store_data_export: "无门店数据导出"
   no_segment_data: "未找到此标签的数据。"
   download_data_error: "下载数据错误: {error}"
+  status_pending: "待处理"
+  status_done: "已完成"
+  status_error: "错误"
 
 zh_tw:
 
@@ -135,6 +143,7 @@ zh_tw:
   import_promotion_segments_failed: "匯入促銷標籤失敗: {error}. 用戶ID: {user_id}, 檔案: {filename}"
   missing_columns: "缺少欄位: {columns}"
   no_valid_data: "上傳的檔案中未找到有效數據。"
+  no_valid_file: "檔案格式不正確，請檢查檔案"
   promotion_not_found: "未找到ID為 {promotion_id} 的促銷。"
   promotion_dashboard_error: "促銷儀表板: {error}"
 
@@ -142,6 +151,9 @@ zh_tw:
   no_store_data_export: "無門店數據匯出"
   no_segment_data: "未找到此標籤的數據。"
   download_data_error: "下載數據錯誤: {error}"
+  status_pending: "待處理"
+  status_done: "已完成"
+  status_error: "錯誤"
 
 jp :
   segment_submitted: "セグメントが送信されました。"
@@ -176,7 +188,11 @@ jp :
   import_promotion_segments_failed: "プロモーションセグメントのインポートに失敗しました: {error}. ユーザーID: {user_id}, ファイル: {filename}"
   missing_columns: "欠落している列: {columns}"
   no_valid_data: "アップロードされたファイルには有効なデータがありません。"
+  no_valid_file: "ファイル形式が不正です。ファイルを確認してください"
   promotion_not_found: "ID {promotion_id} のプロモーションが見つかりません。"
   promotion_dashboard_error: "プロモーションダッシュボード: {error}"
   user_already_exists: "ユーザーは既に存在します"
   user_no_permission: "ユーザーに必要な権限がありません。管理者に連絡してください"
+  status_pending: "保留中"
+  status_done: "完了"
+  status_error: "エラー"

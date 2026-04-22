@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from service.promotion import process_promotion_data, process_promotion_termination
-from service.segments_service import get_segments_item_detail, get_segments_by_phone, process_segment_data
+from service.segments_service import  get_segments_by_phone, process_segment_data
 from worker_api.worker_schemas import WorkerCallBack
-from service.worker import get_worker_next_task, update_worker_task
+from service.worker import get_worker_next_task, update_worker_task, process_data_dispatch_data
 from service import get_db
 import hashlib
 import hmac
-import time
-
+from fastapi.responses import FileResponse
 from utils.logger import app_logger
+import os
 
 router = APIRouter()
 
@@ -131,6 +131,8 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
                 app_logger.error(f"Error in process_promotion_data: {str(e)}", exc_info=True)
         elif data_type == 'segment_item':
             data_detail = await process_segment_data(data_key, session)
+        elif data_type == 'data_dispatch':
+            data_detail = await process_data_dispatch_data(data_key, session)
         else:
             return {"code": 301, "msg": "data_type is not support"}
 
@@ -186,3 +188,88 @@ async def call_back_data(data: dict):
     :return:
     """
     return {'code': 200, "message": "success", "next_session": None}
+
+
+@router.get("/worker_api/files/download/{filename}")
+async def download_file(filename: str):
+    """
+    下载指定文件
+
+    Args:
+        filename: 文件名
+
+    Returns:
+        FileResponse: 文件响应
+    """
+    try:
+        # 获取项目根目录下的 downloads 文件夹
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        downloads_dir = os.path.join(base_dir, 'downloads')
+        file_path = os.path.join(downloads_dir, filename)
+
+        # 安全检查：防止目录遍历攻击
+        if not os.path.abspath(file_path).startswith(os.path.abspath(downloads_dir)):
+            app_logger.error(f"Directory traversal attempt detected: {filename}")
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied"
+            )
+
+        if not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"File '{filename}' not found"
+            )
+
+        if not os.path.isfile(file_path):
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{filename}' is not a valid file"
+            )
+
+        media_type = _get_file_media_type(filename)
+
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type=media_type,
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        app_logger.error(f"Error downloading file {filename}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error downloading file: {str(e)}"
+        )
+
+
+# def _format_file_size(size_bytes):
+#     """格式化文件大小"""
+#     if size_bytes < 1024:
+#         return f
+#
+
+def _get_file_media_type(filename: str) -> str:
+    """根据文件扩展名获取 MIME 类型"""
+    ext = os.path.splitext(filename)[1].lower()
+    media_types = {
+        '.jar': 'application/java-archive',
+        '.zip': 'application/zip',
+        '.tar.gz': 'application/gzip',
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.csv': 'text/csv',
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        '.xls': 'application/vnd.ms-excel',
+        '.doc': 'application/msword',
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+    }
+    return media_types.get(ext, 'application/octet-stream')

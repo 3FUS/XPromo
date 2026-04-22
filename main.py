@@ -37,7 +37,7 @@ from service.promotion import create_promotion, create_promotion_condition, crea
     update_promotion_status, get_promotion_location_detail_by_id, \
     update_promotion_export_time, delete_promotion, create_promotion_org_data, get_promotion_org_join_by_id, \
     get_promotion_location_detail_by_id_v2, process_promotion_data, delete_promotion_condition, delete_promotion_result, \
-    delete_promotion_import, get_promotion_import_by_id, get_location_detail_by_promotionId
+    delete_promotion_import, get_promotion_import_by_id, get_location_detail_by_promotionId, get_promotion_export_status
 
 from service.worker import create_worker_task, create_termination_task
 from service.access_service import verify_password, get_sys_user_configuration
@@ -796,14 +796,14 @@ async def import_promotion_segments(
                 return {'code': 200, "promotion_id": promotion_id, "msg": get_message("promotion_submitted", lang)}
 
         df = await validate_and_read_file(uFile)
-        df = await _clean_and_standardize_data(df)
+        df = await _clean_and_standardize_data(df,org_id, lang)
 
         if preview:
             return await _generate_preview_response(df)
 
         # 验证促销存在性
         promotion = await _validate_promotion_exists(session, promotion_id)
-
+        app_logger.info(f"Processing import for promotion details:{promotion_id}")
         # 处理数据导入
         result = await _process_import_data(session, promotion_id, df, user_id, uFile.filename)
 
@@ -818,23 +818,30 @@ async def import_promotion_segments(
 
 async def _generate_preview_response(df):
     """生成预览响应"""
-    price_groups = df.groupby('price')
-    groups_info = []
-    for price, group in price_groups:
-        groups_info.append({
-            "price": float(price),
-            "item_count": len(group),
-            "items": group[['item_id', 'price']].to_dict('records')
-        })
-
-    return {
-        'code': 200,
-        'preview': True,
-        'data': df.to_dict('records'),
-        'total_items': len(df),
-        'total_groups': len(price_groups)
-    }
-
+    try:
+        app_logger.info(f"Generating preview response for DataFrame with {len(df)} rows")
+        app_logger.info(f"DataFrame sample data (first 10 rows):\n{df.head(10)}")
+        app_logger.info(f"Price column dtype: {df['price'].dtype}")
+        price_groups = df.groupby('price')
+        groups_info = []
+        for price, group in price_groups:
+            groups_info.append({
+                "price": float(price),
+                "item_count": len(group),
+                "items": group[['item_id', 'price']].to_dict('records')
+            })
+        data_records = df.to_dict('records')
+        app_logger.debug(f"Converted DataFrame to {len(data_records)} records")
+        return {
+            'code': 200,
+            'preview': True,
+            'data': data_records,
+            'total_items': len(df),
+            'total_groups': len(price_groups)
+        }
+    except Exception as e:
+        app_logger.error(f"Error generating preview response: {repr(e)}")
+        raise e
 
 async def _validate_promotion_exists(session, promotion_id):
     """验证促销是否存在"""
@@ -848,9 +855,13 @@ async def _process_import_data(session, promotion_id, df, user_id, filename):
     """处理数据导入"""
     # 清理现有数据
     await _cleanup_existing_data(session, promotion_id)
+    app_logger.info(f"Processing import data for promotion {promotion_id}")
+    app_logger.info(f"Total items in import data: {len(df)}")
 
+    valid_data = df[df['error_flag'] != 1].copy()
+    error_count = df[df['error_flag'] == 1].shape[0]
     # 按价格分组处理
-    price_groups = df.groupby('price')
+    price_groups = valid_data.groupby('price')
 
     created_segments = []
     segment_ids = []
@@ -859,7 +870,8 @@ async def _process_import_data(session, promotion_id, df, user_id, filename):
     promotion_import = PromotionImport(
         promotion_id=promotion_id,
         file_name=filename,
-        count_success=len(df),
+        count_success=len(valid_data),
+        count_fail=error_count,
         create_time=datetime.now(),
         create_user=user_id
     )
@@ -881,7 +893,7 @@ async def _process_import_data(session, promotion_id, df, user_id, filename):
         'code': 200,
         'preview': False,
         'promotion_id': promotion_id,
-        'msg': f"Successfully imported {len(segment_ids)} segments with {len(df)} items",
+        'msg': f"Successfully imported {len(segment_ids)} segments with {len(valid_data)} items",
         'created_segments': created_segments,
         'segment_ids': segment_ids
     }
@@ -974,6 +986,10 @@ async def _create_segment_details(session, segment_id, group):
         detail = SegmentsItemDetail(
             segment_id=segment_id,
             item_id=row['item_id'],
+            sku=row['sku'],
+            item_name=row['item_name'],
+            item_description=row['item_description'],
+            item_department=row['item_department'],
             create_time=datetime.now()
         )
         segment_details.append(detail)
@@ -986,6 +1002,22 @@ async def _create_segment_details(session, segment_id, group):
     # 添加剩余的记录
     if segment_details:
         session.add_all(segment_details)
+
+
+@app.get("/promotion_api/promotion/export_status_list")
+async def read_export_status_list(session=Depends(get_db),
+                                  promotion_id: int = Query(..., description="促销ID"),
+                                  key_word: str = Query(None, description="模糊查询关键字"),
+                                  page: int = Query(1, description="页码"),
+                                  page_size: int = Query(10, description="每页记录数"),
+                                  lang: str = Query("en"),
+                                  user_id=Depends(get_current_user)
+                                  ):
+    try:
+        result = await get_promotion_export_status(session, promotion_id, key_word, page, page_size, lang)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取促销导出状态时发生错误: {str(e)}")
 
 
 @app.get("/promotion_api/promotion/promotion_dashboard")

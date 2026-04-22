@@ -15,9 +15,15 @@ import yaml
 
 from utils.logger import app_logger
 
-from utils.config_manager import config_manager
+from utils.app_config import app_config
+from utils.translator import get_message
 
-dict_condition = config_manager.get_config()
+
+def get_promotion_config(org_id=None, config_type='promotion_class'):
+    """获取最新配置"""
+    template = app_config.template_config_org[org_id][config_type] if org_id else app_config.template_config[
+        config_type]
+    return template
 
 
 def generate_promotion_id(session: Session, sequence_type: str = 'promotion'):
@@ -396,18 +402,16 @@ async def create_promotion_customer_segments(session: Session, promotion_id: int
     return new_promotion_customer_segments
 
 
-class_id_to_code = {item['class_id']: item['code'] for item in dict_condition['promotion_class']}
-
-
-def get_class_code_by_id(class_id):
-    return class_id_to_code.get(class_id, None)
-
-
-def get_subclass_code_by_id(class_id, subclass_id):
-    for item in dict_condition['promotion_template']:
-        if item['class_id'] == class_id and item['subclass_id'] == str(subclass_id):
-            return item['code']
-    return None
+# def get_class_code_by_id(class_id, org_id=None):
+#     class_id_to_code = get_promotion_config(org_id, 'promotion_template')
+#     return class_id_to_code.get(class_id, None)
+#
+#
+# def get_subclass_code_by_id(class_id, subclass_id, org_id=None):
+#     for item in get_promotion_config(org_id, 'promotion_template'):
+#         if item['class_id'] == class_id and item['subclass_id'] == str(subclass_id):
+#             return item['code']
+#     return None
 
 
 async def get_promotion_list(session, key_word=None, promotion_status=None, org_id=None, page=1, page_size=30):
@@ -444,74 +448,89 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, org_
     result = []
     now = datetime.now()
 
+    promotion_template_list = get_promotion_config(org_id, 'promotion_template')
+
     promotion_template_dict = {
-        (t.get('class_id'), t.get('subclass_id')): t
-        for t in dict_condition.get('promotion_template', [])
+        (t['class_id'], t['subclass_id']): t
+        for t in promotion_template_list
     }
 
-    for item, count_N, count_E, count_D in items:
+    promotion_class_list = get_promotion_config(org_id, 'promotion_class')
 
-        template = promotion_template_dict.get((item.class_id, item.subclass_id), {})
-        online_calculation = template.get('online_calculation', 0)
-        import_flag = template.get('import', 0)
-        price_tag = template.get('price_tag', 0)
+    class_code_map = {
+        item['class_id']: item['code']
+        for item in promotion_class_list
+    }
 
-        total_tasks = (count_N or 0) + (count_E or 0) + (count_D or 0)
+    try:
+        for item, count_N, count_E, count_D in items:
 
-        # 判断状态灯
-        if total_tasks == 0:
-            status_light = 'gray'  # 没有任务
-        elif (count_E or 0) == total_tasks:
-            status_light = 'red'  # 全部Error
-        elif (count_D or 0) == total_tasks:
-            status_light = 'green'  # 全部Done
-        elif (count_N or 0) == total_tasks:
-            status_light = 'gray'  # 全部New
-        elif (count_E or 0) > 0 and (count_D or 0) > 0:
-            status_light = 'orange'  # 部分Error部分Done
-        elif (count_D or 0) > 0:
-            status_light = 'light_green'  # 部分Done
-        else:
-            status_light = 'gray'  # 默认
+            template = promotion_template_dict.get((item.class_id, str(item.subclass_id)), {})
+            app_logger.debug("template: %s", template)
+            online_calculation = template.get('online_calculation', 0)
+            import_flag = template.get('import', 0)
+            price_tag = template.get('price_tag', 0)
+            subclass_code = template.get('code', '')
 
-        time_stats = (
-            'Closed' if item.promotion_status == 'inactive' else
-            'In Progress' if item.start_date <= now <= item.end_date else
-            'Completed' if item.end_date < now else 'Not Started'
-        )
+            class_code = class_code_map.get(item.class_id, '')
 
-        result.append({
-            'promotion_id': item.promotion_id,
-            'name': item.name,
-            'description': item.description,
-            'promotion_type': item.promotion_type,
-            'promotion_status': item.promotion_status,
-            'class_id': item.class_id,
-            'subclass_id': item.subclass_id,
-            'promotion_group': item.promotion_group,
-            'promotion_level': item.promotion_level,
-            'coupon_code': item.coupon_code,
-            'start_date': item.start_date.strftime('%Y-%m-%d %H:%M') if item.start_date else None,
-            'end_date': item.end_date.strftime('%Y-%m-%d %H:%M') if item.end_date else None,
-            'export_time': item.last_export_time.strftime('%Y-%m-%d %H:%M') if item.last_export_time else None,
-            'export_status_counts': {
-                'New': count_N or 0,
-                'Error': count_E or 0,
-                'Done': count_D or 0
-            },
-            'export_light': status_light,
-            'create_time': item.create_time.strftime('%Y-%m-%d %H:%M') if item.create_time else None,
-            'create_user': item.create_user,
-            'update_time': item.update_time.strftime('%Y-%m-%d %H:%M') if item.update_time else None,
-            'update_user': item.update_user,
-            'time_stats': time_stats,
-            'class_code': get_class_code_by_id(item.class_id),
-            'subclass_code': get_subclass_code_by_id(item.class_id, item.subclass_id),
-            'online_calculation': online_calculation,
-            'import_flag': import_flag,
-            'price_tag': price_tag
-        })
+            total_tasks = (count_N or 0) + (count_E or 0) + (count_D or 0)
 
+            # 判断状态灯
+            if total_tasks == 0:
+                status_light = 'gray'  # 没有任务
+            elif (count_E or 0) == total_tasks:
+                status_light = 'red'  # 全部Error
+            elif (count_D or 0) == total_tasks:
+                status_light = 'green'  # 全部Done
+            elif (count_N or 0) == total_tasks:
+                status_light = 'gray'  # 全部New
+            elif (count_E or 0) > 0 and (count_D or 0) > 0:
+                status_light = 'orange'  # 部分Error部分Done
+            elif (count_D or 0) > 0:
+                status_light = 'light_green'  # 部分Done
+            else:
+                status_light = 'gray'  # 默认
+
+            time_stats = (
+                'Closed' if item.promotion_status == 'inactive' else
+                'In Progress' if item.start_date <= now <= item.end_date else
+                'Completed' if item.end_date < now else 'Not Started'
+            )
+
+            result.append({
+                'promotion_id': item.promotion_id,
+                'name': item.name,
+                'description': item.description,
+                'promotion_type': item.promotion_type,
+                'promotion_status': item.promotion_status,
+                'class_id': item.class_id,
+                'subclass_id': item.subclass_id,
+                'promotion_group': item.promotion_group,
+                'promotion_level': item.promotion_level,
+                'coupon_code': item.coupon_code,
+                'start_date': item.start_date.strftime('%Y-%m-%d %H:%M') if item.start_date else None,
+                'end_date': item.end_date.strftime('%Y-%m-%d %H:%M') if item.end_date else None,
+                'export_time': item.last_export_time.strftime('%Y-%m-%d %H:%M') if item.last_export_time else None,
+                'export_status_counts': {
+                    'New': count_N or 0,
+                    'Error': count_E or 0,
+                    'Done': count_D or 0
+                },
+                'export_light': status_light,
+                'create_time': item.create_time.strftime('%Y-%m-%d %H:%M') if item.create_time else None,
+                'create_user': item.create_user,
+                'update_time': item.update_time.strftime('%Y-%m-%d %H:%M') if item.update_time else None,
+                'update_user': item.update_user,
+                'time_stats': time_stats,
+                'class_code': class_code,
+                'subclass_code': subclass_code,
+                'online_calculation': online_calculation,
+                'import_flag': import_flag,
+                'price_tag': price_tag
+            })
+    except Exception as e:
+        app_logger.error("Error processing item: %s", e)
     return {
         "total": total,
         "page": page,
@@ -713,8 +732,9 @@ async def get_location_detail_by_promotionId(promotion_id: int, session) -> dict
         return {"data": df_locs, "data_type": data_type, "termination_locs": termination_locs}
 
     except Exception as e:
-        app_logger.error(f"[get_location_detail_by_promotion_id] 处理过程中发生错误, promotion_id: {promotion_id}, 错误: {str(e)}",
-                         exc_info=True)
+        app_logger.error(
+            f"[get_location_detail_by_promotion_id] 处理过程中发生错误, promotion_id: {promotion_id}, 错误: {str(e)}",
+            exc_info=True)
         return {"data": pd.DataFrame(), "data_type": "unknown", "termination_locs": pd.DataFrame()}
 
 
@@ -793,7 +813,13 @@ mapping_file = open('./config/mapping.yaml', 'r', encoding='utf-8')
 mapping_config = yaml.safe_load(mapping_file)
 promotion_mapping = mapping_config.get("promotion_mapping", {})
 
-PROMOTION_MNT_DEFAULT = dict_condition['promotion_template_default_p']
+
+#
+# PROMOTION_MNT_DEFAULT = get_dict_condition()['promotion_template_default_p']
+#
+# app_logger.info(
+#     f"PROMOTION_MNT_DEFAULT: {PROMOTION_MNT_DEFAULT}"
+# )
 
 
 async def process_promotion_termination(promotion_id: int, session, location_id):
@@ -916,10 +942,19 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         promotion_condition_data = await get_promotion_condition_by_id(session, promotion_id)
 
         app_logger.debug(f"获取促销商品段数据，promotion_id: {promotion_id}")
-        promotion_item_segments_data = await get_promotion_item_segments_by_id(session, promotion_id)
+        promotion_item_segments_data_all = await get_promotion_item_segments_by_id(session, promotion_id)
 
         app_logger.debug(f"获取促销客户段数据，promotion_id: {promotion_id}")
         promotion_cust_segments_data = await get_promotion_customer_segments_by_id(session, promotion_id)
+
+        has_all_item = any(item['name'] == 'ALL ITEM' for item in promotion_item_segments_data_all)
+        app_logger.debug(f"ALL ITEM 是否存在，promotion_id: {promotion_id}, has_all_item: {has_all_item}")
+        app_logger.debug(f"ALL ITEM 删除前，promotion_item_segments_data_all: {promotion_item_segments_data_all}")
+        promotion_item_segments_data = [
+            item for item in promotion_item_segments_data_all
+            if item['name'] != 'ALL ITEM'
+        ]
+        app_logger.debug(f"ALL ITEM 删除后，promotion_item_segments_data: {promotion_item_segments_data}")
 
         # 提取关键字段
         promotion_status = promotion_data.promotion_status
@@ -936,6 +971,12 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         stackable = promotion_data.stackable
 
         app_logger.debug(f"提取配置信息，class_id: {class_id}, subclass_id: {subclass_id}")
+
+        PROMOTION_MNT_DEFAULT = get_promotion_config(promotion_data.org_id, 'promotion_template_default_p')
+
+        app_logger.debug(
+            f"PROMOTION_MNT_DEFAULT: {PROMOTION_MNT_DEFAULT}"
+        )
         item_set = PROMOTION_MNT_DEFAULT[class_id][subclass_id].get('item_set', 2)
 
         # 初始化默认值
@@ -1094,47 +1135,73 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                             "action_arg_qty": result_data.action_qty if result_data.action_qty is not None and result_data.action_qty > 0 else None
                         }
                         PRC_DEAL_ITEM.append(DEAL_ITEM_0)
-
             data_detail.append(
-                {'table': 'PRC_DEAL_ITEM', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
+                {'table': 'PRC_DEAL_ITEM', 'table_key': ['organization_id', 'deal_id'],
+                 "action": "DELETE_AND_INSERT",
                  "data": PRC_DEAL_ITEM})
 
             from collections import defaultdict
 
             grouped_items = defaultdict(list)
+            app_logger.debug(f'grouped_items:{grouped_items}')
             for item in promotion_item_segments_data:
                 grouped_items[item['set_id']].append(item)
 
             for set_id in sorted(grouped_items.keys()):
+
                 equal_items = [item for item in grouped_items[set_id] if item['include'] == 1]
+                not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
+
                 serial_number = 1
-                for item in equal_items:
+                if equal_items:
+                    for item in equal_items:
 
-                    item_condition_seq = 1
-                    item_type = 1 if item['item_type'] == 'Condition' else 2
-                    if item_set in [1, 0] and item_type != 1:
-                        continue
-                    DEAL_ITEM_TEST = {
-                        **promotion_mapping["DEAL_ITEM_TEST"],
-                        "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
-                        "item_ordinal": item['set_id'],
-                        "item_condition_group": serial_number,
-                        "item_condition_seq": item_condition_seq,
-                        "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
-                        "match_rule": 'EQUAL'
-                    }
-                    PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-
-                    not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
-
-                    for not_item in not_equal_items:
-                        item_condition_seq += 1
-                        item_type = 1 if not_item['item_type'] == 'Condition' else 2
+                        item_condition_seq = 1
+                        item_type = 1 if item['item_type'] == 'Condition' else 2
                         if item_set in [1, 0] and item_type != 1:
+                            app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
                             continue
                         DEAL_ITEM_TEST = {
                             **promotion_mapping["DEAL_ITEM_TEST"],
-                            "deal_id": promotion_id,
+                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
+                            "item_ordinal": item['set_id'],
+                            "item_condition_group": serial_number,
+                            "item_condition_seq": item_condition_seq,
+                            "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
+                            "match_rule": 'EQUAL'
+                        }
+                        PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
+
+                        # not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
+                        app_logger.debug(f'not_equal_items: {not_equal_items}')
+                        for not_item in not_equal_items:
+                            item_condition_seq += 1
+                            item_type = 1 if not_item['item_type'] == 'Condition' else 2
+                            if item_set in [1, 0] and item_type != 1:
+                                app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
+                                continue
+                            DEAL_ITEM_TEST = {
+                                **promotion_mapping["DEAL_ITEM_TEST"],
+                                "deal_id": promotion_id,
+                                "item_ordinal": not_item['set_id'],
+                                "item_condition_group": serial_number,
+                                "item_condition_seq": item_condition_seq,
+                                "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
+                                "match_rule": 'NOT_EQUAL'
+                            }
+                            PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
+                        serial_number += 1
+                elif not_equal_items:
+                    for not_item in not_equal_items:
+                        item_condition_seq = 1
+                        item_type = 1 if not_item['item_type'] == 'Condition' else 2
+                        if item_set in [1, 0] and item_type != 1:
+                            app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
+                            continue
+
+                        DEAL_ITEM_TEST = {
+                            **promotion_mapping["DEAL_ITEM_TEST"],
+                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
                             "item_ordinal": not_item['set_id'],
                             "item_condition_group": serial_number,
                             "item_condition_seq": item_condition_seq,
@@ -1142,12 +1209,28 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                             "match_rule": 'NOT_EQUAL'
                         }
                         PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-                    serial_number += 1
+                        serial_number += 1
 
-            data_detail.append(
-                {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
-                 "action": "DELETE_AND_INSERT",
-                 "data": PRC_DEAL_FIELD_TEST})
+            app_logger.debug(f"PRC_DEAL_FIELD_TEST:{PRC_DEAL_FIELD_TEST}")
+            # data_detail.append(
+            #     {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
+            #      "action": "DELETE_AND_INSERT",
+            #      "data": PRC_DEAL_FIELD_TEST})
+
+            if PRC_DEAL_FIELD_TEST:
+                data_detail.append(
+                    {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
+                     "action": "DELETE_AND_INSERT",
+                     "data": PRC_DEAL_FIELD_TEST})
+            else:
+                mock_deal_item = {
+                    **promotion_mapping["DEAL_ITEM_TEST"],
+                    "deal_id": promotion_id,
+                }
+                data_detail.append(
+                    {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE",
+                     "data": [mock_deal_item]})
+
 
             DEAL_LOC = {
                 **promotion_mapping["PRC_DEAL_LOC"],
@@ -1239,6 +1322,71 @@ async def process_promotion_data(promotion_id: int, session, location_id):
     except Exception as e:
         app_logger.error(f"处理促销数据时发生错误，promotion_id: {promotion_id}, 错误: {str(e)}", exc_info=True)
         raise e
+
+
+async def get_promotion_export_status(session: Session, promotion_id: int, key_word: str = None, page: int = 1,
+                                      page_size: int = 10, lang='en'):
+    # 构建基础查询
+    query = (
+        session.query(
+            WorkerTask.location_id,
+            LOC_ORG_HIERARCHY.DESCRIPTION,
+            WorkerTask.terminal_id,
+            WorkerTask.status,
+            WorkerTask.msg,
+            WorkerTask.update_time,
+            WorkerTask.session_id
+        )
+        .join(Promotion, Promotion.last_session_id == WorkerTask.session_id)
+        .outerjoin(LOC_ORG_HIERARCHY,
+                   and_(WorkerTask.location_id == LOC_ORG_HIERARCHY.ORG_VALUE,
+                        LOC_ORG_HIERARCHY.ORG_CODE == 'STORE'))
+        .filter(Promotion.promotion_id == promotion_id)
+    )
+
+    # 添加模糊查询条件
+    if key_word:
+        query = query.filter(
+            or_(
+                WorkerTask.location_id.like(f"%{key_word}%"),
+                LOC_ORG_HIERARCHY.DESCRIPTION.like(f"%{key_word}%")
+            )
+        )
+
+    # 获取总记录数
+    total = query.count()
+
+    # 添加分页和排序（MSSQL分页必须使用ORDER BY）
+    results = (
+        query.order_by(WorkerTask.location_id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    # 格式化结果
+    formatted_results = [
+        {
+            "location_id": item.location_id,
+            "description": item.DESCRIPTION,
+            "terminal_id": item.terminal_id,
+            "status_color": item.status,
+            "status": get_message("status_error", lang) if item.status == "E" else get_message("status_done",
+                                                                                               lang) if item.status == "D" else get_message(
+                "status_pending", lang) if item.status == "N" else item.status,
+            "msg": item.msg,
+            "download_time": item.update_time.strftime('%Y-%m-%d %H:%M') if item.update_time else None,
+            "session_id": item.session_id
+        }
+        for item in results
+    ]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "data": formatted_results
+    }
 
 
 async def get_promotion_dashboard(session: Session, org_id: str):

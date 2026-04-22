@@ -1,5 +1,5 @@
 import datetime
-from models.model import SamCompetitorSales
+from models.sam_competitor import CompetitorBrand,SamCompetitorSales
 from utils.logger import app_logger
 from sqlalchemy.orm import Session
 from schemas.competitor_sales import CompetitorSalesCreate
@@ -44,4 +44,31 @@ async def create_competitor_sale(session: Session, sale_data: CompetitorSalesCre
     except Exception as e:
         session.rollback()
         app_logger.error(f"Error creating competitor sales: {str(e)}")
+        raise e
+
+
+async def get_competitor_brands(session: Session):
+    """
+    从数据库中获取启用的竞争品牌清单
+
+    Args:
+        session: 数据库会话
+
+    Returns:
+        list: 竞争品牌名称列表
+    """
+    try:
+        brands = session.query(CompetitorBrand.brand_name).filter(
+            CompetitorBrand.brand_status == 'active'
+        ).order_by(
+            CompetitorBrand.sort_order.asc(),
+            CompetitorBrand.brand_id.asc()
+        ).all()
+
+        brand_list = [brand[0] for brand in brands]
+        app_logger.info(f"Retrieved {len(brand_list)} competitor brands from database")
+
+        return brand_list
+    except Exception as e:
+        app_logger.error(f"Error retrieving competitor brands from database: {str(e)}")
         raise e

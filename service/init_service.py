@@ -4,7 +4,7 @@ from models.model import SysUser, SysRole, SysUserRole, SysMenu, SysMenuPermissi
 from utils.logger import app_logger
 import bcrypt
 from datetime import datetime
-
+from utils.app_config import app_config
 
 def init_system_data(session: Session):
     """
@@ -55,16 +55,31 @@ def init_system_data(session: Session):
             )
             session.add(user_role)
 
-        segment_org_pairs = [
-            {'segment_id': 50001, 'org_id': '5050'},
-            {'segment_id': 50002, 'org_id': '5010'},
-            {'segment_id': 50003, 'org_id': '5060'},
-            {'segment_id': 50004, 'org_id': '5090'},
-            {'segment_id': 50005, 'org_id': '5080'},
-            {'segment_id': 50006, 'org_id': '5750'},
-            {'segment_id': 50007, 'org_id': '5760'},
-            {'segment_id': 50008, 'org_id': '5790'}
-        ]
+        # segment_org_pairs = [
+        #     {'segment_id': 50001, 'org_id': '5050'},
+        #     {'segment_id': 50002, 'org_id': '5010'},
+        #     {'segment_id': 50003, 'org_id': '5060'},
+        #     {'segment_id': 50004, 'org_id': '5090'},
+        #     {'segment_id': 50005, 'org_id': '5080'},
+        #     {'segment_id': 50006, 'org_id': '5750'},
+        #     {'segment_id': 50007, 'org_id': '5760'},
+        #     {'segment_id': 50008, 'org_id': '5790'}
+        # ]
+
+        segment_org_pairs = []
+        org_config = app_config.get_org_config()
+        organizations = org_config.get('organizations', [])
+
+        for index, org in enumerate(organizations, start=1):
+            org_id = org.get('org_id')
+            if org_id:
+                segment_id = 50000 + index
+                segment_org_pairs.append({
+                    'segment_id': segment_id,
+                    'org_id': org_id
+                })
+
+        app_logger.info(f"Loaded {len(segment_org_pairs)} segment-org pairs from organization config")
 
         for pair in segment_org_pairs:
             existing_record = session.query(SegmentsItem).filter(SegmentsItem.segment_id == pair['segment_id']).first()
@@ -77,7 +92,7 @@ def init_system_data(session: Session):
                     segment_status='active',
                     condition_type='and',
                     create_type='condition',
-                    public=0,
+                    public=2,
                     sub_count=0,
                     create_time=datetime.now(),
                     create_user='init_system',

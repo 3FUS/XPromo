@@ -8,7 +8,7 @@ promotion_mapping:
     exclude_discounted_flag: 0
   DEAL_P:
     organization_id: 1
-    property_code: "Stackable"
+    property_code: "STACKABLE"
     type: "String"
   DEAL_ITEM_1:
     organization_id: 1

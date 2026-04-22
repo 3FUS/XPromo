@@ -39,7 +39,7 @@ location:
   - condition_name: "Location ID"
     condition_type: [ '=', '<>', 'include', 'exclude' ]
     value_type: "SQL"
-    condition_value: [ "SELECT DISTINCT lrl.rtl_loc_id,lrl.rtl_loc_id from loc_rtl_loc lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5760'" ]
+    condition_value: [ "SELECT DISTINCT lrl.rtl_loc_id,CONCAT(lrl.rtl_loc_id, ' - ', lrl.store_name) AS store_name from loc_rtl_loc lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5760'" ]
 customer:
   - condition_name: "Gender"
     condition_type: [ '=', '<>', 'include', 'exclude' ]

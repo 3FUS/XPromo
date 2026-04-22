@@ -4,11 +4,11 @@ from datetime import datetime
 
 from sqlalchemy import and_
 
-from models.model import SamCompetitorSales
+from models.sam_competitor import SamCompetitorSales
 from schemas.competitor_sales import CompetitorSalesCreate
 
 from service import get_db
-from service.competitor_sales_service import create_competitor_sale
+from service.competitor_sales_service import create_competitor_sale,get_competitor_brands
 import hashlib
 import hmac
 
@@ -127,28 +127,28 @@ async def page_load():
 
 
 @router.get("/brands", summary="获取竞争品牌清单")
-async def get_competitor_brands():
+async def get_competitor_sales_brands(session=Depends(get_db)):
     """
     获取可用的竞争品牌清单
     """
-    brands = [
-        "TUMI",
-        "Victorinox",
-        "LOJEL",
-        "Crown (Travel Station)",
-        "Eminnet",
-        "愛力 (Echolac)",
-        "祥銓",
-        "ACE",
-        "Doris",
-        "DELSEY",
-        "Departure",
-        "PIQUAERO",
-        "pacsafe",
-        "Porter",
-        "KIPLING"
-    ]
-
+    # brands = [
+    #     "TUMI",
+    #     "Victorinox",
+    #     "LOJEL",
+    #     "Crown (Travel Station)",
+    #     "Eminnet",
+    #     "愛力 (Echolac)",
+    #     "祥銓",
+    #     "ACE",
+    #     "Doris",
+    #     "DELSEY",
+    #     "Departure",
+    #     "PIQUAERO",
+    #     "pacsafe",
+    #     "Porter",
+    #     "KIPLING"
+    # ]
+    brands = await get_competitor_brands(session)
     return {
         "code": 200,
         "msg": "品牌清单获取成功",
