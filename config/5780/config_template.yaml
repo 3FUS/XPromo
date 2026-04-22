@@ -1,0 +1,510 @@
+promotion_class:
+  - code: Discount
+    code_zh: 折扣
+    code_zh_tw: 折扣
+    code_jp: 割引
+    description: Discount applied at line item or transaction level
+    description_zh: 商品行项目或交易总额折扣
+    description_zh_tw: 商品行項目或交易總額折扣
+    description_jp: 割引が行われ、商品行項目またはトランザクションレベルで適用されます
+    class_id: A
+  - code: Fixed Quantity/Price
+    code_zh: 固定数量/价格
+    code_zh_tw: 固定數量/價格
+    code_jp: 固定數量/定価
+    description: >-
+      A certain discount or special price associated with a certain set of
+      items, when purchased together
+    description_zh: 购买特定组合商品时享受的折扣或特殊价格
+    description_zh_tw: 購買特定組合商品時享受的折扣或特殊價格
+    description_jp: 特定アイテムのセットが購入されたときに、特定の割引または特定価格が適用されます
+    class_id: B
+  - code: Gift with Purchase
+    code_zh: 购买赠礼
+    code_zh_tw: 購買贈禮
+    code_jp: 購入贈り
+    description: >-
+      A gift is provided to the customer when they purchase certain, defined
+      item(s)
+    description_zh: 顾客购买特定商品时赠送礼品
+    description_zh_tw: 顧客購買特定商品時贈送禮品
+    description_jp: 顧客が特定アイテムを購入すると、ギフトが提供されます
+    class_id: C
+  - code: Buy X Get Y
+    code_zh: 买X送Y
+    code_zh_tw: 買X送Y
+    code_jp: 購入X個でY個
+    description: >-
+      The purchase of a certain, defined item allows the customer to receive a
+      different item at no cost or a discount
+    description_zh: 购买特定商品可免费获得其他商品或享受折扣
+    description_zh_tw: 購買特定商品可免費獲得其他商品或享受折扣
+    description_jp: 顧客が特定アイテムを購入すると、別のアイテムが無料で提供され、金額が0円か割引が適用されます
+    class_id: D
+promotion_template:
+  - subclass_id: '1'
+    code: Spend X$ or more, get Y$ off
+    code_zh: 满X金额减Y金额
+    code_zh_tw: 滿X金額減Y金額
+    code_jp: X円以上でY円の割引
+    description: Discount amount is applied to the subtotal of a transaction
+    description_zh: 折扣金额应用于交易小计
+    description_zh_tw: 折扣金額應用於交易小計
+    description_jp: 金額がX円以上の場合、Y円の割引が適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '2'
+    code: Spend X$ or more, get Y% off
+    code_zh: 满X金额打Y折
+    code_zh_tw: 滿X金額打Y折
+    code_jp: X円以上でY％の割引
+    description: Discount percentage is applied to the subtotal of a transaction
+    description_zh: 折扣百分比应用于交易小计
+    description_zh_tw: 折扣百分比應用於交易小計
+    description_jp: 金額がX円以上の場合、Y％の割引が適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '4'
+    code: Purchase X item(s) or more, get Y% off
+    code_zh: 购买X件或以上商品打Y折
+    code_zh_tw: 購買X件或以上商品打Y折
+    code_jp: X個アイテム以上でY％の割引
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテム以上を購入すると、Y％の割引が適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '5'
+    code: Purchase every X item(s), get Y% off
+    code_zh: 每购买X件商品打Y折
+    code_zh_tw: 購買每X件商品打Y折
+    code_jp: X個アイテムを購入するとY％の割引
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '6'
+    code: Purchase X item(s) or more, get Y$ off
+    code_zh: 购买X件或以上商品减Y金额
+    code_zh_tw: 購買X件或以上商品减Y金額
+    code_jp: X 点以上購入で Y 円割引
+    description: Discount amount is applied to the subtotal of a transaction
+    description_zh: 折扣金额应用于交易小计
+    description_zh_tw: 折扣金額應用於交易小計
+    description_jp: 金額がX円以上の場合、Y円の割引が適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '7'
+    code: Purchase every X item(s), get Y$ off
+    code_zh: 每购买X件商品减Y金额
+    code_zh_tw: 購買每X件商品减Y金額
+    code_jp: X個アイテムを購入すると、Y円の割引が適用されます
+    description: Discount amount is applied to the line items
+    description_zh: 折扣金额应用于商品行项目
+    description_zh_tw: 折扣金額應用於商品行項目
+    description_jp: 割引金額は商品明細項目に適用されます
+    class_id: A
+    stackable: 0
+  - subclass_id: '8'
+    code: Purchase every 1 item(s), get Y% off
+    code_zh: 每购买1件商品打Y折
+    code_zh_tw: 購買每1件商品打Y折
+    code_jp: 1個アイテムを購入するとY％の割引
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: A
+    price_tag: 1
+    stackable: 0
+  - subclass_id: '1'
+    code: Purchase every X item(s) fixed price Y$
+    code_zh: 每购买X件商品固定价格Y金额
+    code_zh_tw: 每購買X件商品固定價格Y金額
+    code_jp: X個アイテムを購入すると、Y円の割引が適用されます
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: B
+    stackable: 0
+  - subclass_id: '2'
+    code: Purchase X$ or more, fixed price Y$ (1 set)
+    code_zh: 满X美元固定价格Y美元(1套)
+    code_zh_tw: 滿X美元固定價格Y美元(1套)
+    code_jp: X円以上でY円の割引
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: 金額がX円以上の場合、Y円の割引が適用されます
+    class_id: B
+    stackable: 0
+  - subclass_id: '3'
+    code: Purchase X$ or more, fixed price Y$ (2 set)
+    code_zh: 满X美元固定价格Y美元(2套)
+    code_zh_tw: 滿X美元固定價格Y美元(2套)
+    code_jp: X円以上でY円の割引
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X円以上でY円の割引が適用されます
+    class_id: B
+    stackable: 0
+  - subclass_id: '4'
+    code: Purchase X item(s), fixed price Y$
+    code_zh: 购买X件商品固定价格Y金额
+    code_zh_tw: 購買X件商品固定價格Y金額
+    code_jp: X個アイテムを購入すると、Y円の割引が適用されます
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    iteration_cap: 1
+    class_id: B
+    stackable: 0
+  - subclass_id: '5'
+    code: Purchase X item(s), fixed price Y$ (2 SET)
+    code_zh: 购买X件商品固定价格Y金额 (2 SET)
+    code_zh_tw: 購買X件商品固定價格Y金額 (2 SET)
+    code_jp: X個アイテムを購入すると、Y円の割引が適用されます
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: B
+    stackable: 0
+  - subclass_id: '99'
+    code: 'Import fixed price Y$ for mutiple items '
+    code_zh: 为多个商品导入固定价格Y金额
+    code_zh_tw: 為多個商品導入固定價格Y金額
+    code_jp: 複数の商品に定額 Y 円を導入する
+    description: Fixed price is applied to the line items
+    description_zh: 固定价格应用于商品行项目
+    description_zh_tw: 固定價格應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y円の割引が適用されます
+    class_id: B
+    import: 1
+    price_tag: 1
+    stackable: 0
+  - subclass_id: '6'
+    code: Purchase every 1 item(s) fixed price Y$
+    code_zh: 每购买1件商品固定价格Y金额
+    code_zh_tw: 每購買1件商品固定價格Y金額
+    code_jp: 1個アイテムを購入すると、Y円の割引が適用されます
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: B
+    price_tag: 1
+    stackable: 0    
+  - subclass_id: '1'
+    code: Purchase every X item(s) get Y item(s) free
+    code_zh: 每购买X件商品赠送Y件商品
+    code_zh_tw: 每購買X件商品贈送Y件商品
+    code_jp: 商品を X 点購入するごとに、Y 点をプレゼントします
+    description: Free items is applied to the line items
+    description_zh: 免费商品应用于商品行项目
+    description_zh_tw: 免費商品應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y個のアイテムが無料
+    class_id: C
+    stackable: 0
+  - subclass_id: '2'
+    code: Purchase X item(s) or more, get Y item(s) free
+    code_zh: 购买X件或以上商品赠送Y件商品
+    code_zh_tw: 購買X件或以上商品贈送Y件商品
+    code_jp: X 点以上購入で Y 点プレゼント
+    description: Free items is applied to the line items
+    description_zh: 免费商品应用于商品行项目
+    description_zh_tw: 免費商品應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y個のアイテムが無料
+    class_id: C
+    stackable: 0
+  - subclass_id: '3'
+    code: Purchase X$ or more, get Y item(s) free
+    code_zh: 满X金额赠送Y件商品
+    code_zh_tw: 滿X金額贈送Y件商品
+    code_jp: X 金額以上ご購入で Y 点プレゼント
+    description: Free items is applied to the line items
+    description_zh: 免费商品应用于商品行项目
+    description_zh_tw: 免費商品應用於商品行項目
+    description_jp: 無料商品は商品行項目に適用されます
+    class_id: C
+    stackable: 0
+  - subclass_id: '4'
+    code: Purchase X item(s) and Y item(s), get Z item(s) free
+    code_zh: 购买X件和Y件商品赠送Z件商品
+    code_zh_tw: 購買X件和Y件商品贈送Z件商品
+    code_jp: X 件と Y 件の商品を購入すると、Z 件の商品をプレゼントします
+    description: Free items is applied to the line items
+    description_zh: 免费商品应用于商品行项目
+    description_zh_tw: 免費商品應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y個のアイテムが無料
+    class_id: C
+    stackable: 0
+  - subclass_id: '1'
+    code: Purchase every X item(s) get Y% off
+    code_zh: 每购买X件商品打Y折
+    code_zh_tw: 每購買X件商品打Y折
+    code_jp: X個アイテムを購入すると、Y％の割引が適
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: D
+    stackable: 0
+  - subclass_id: '2'
+    code: Purchase X item(s) or more, get Y% off
+    code_zh: 购买X件或以上商品打Y折
+    code_zh_tw: 購買X件或以上商品打Y折
+    code_jp: X個アイテムを購入すると、Y％の割引が適
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: D
+    stackable: 0
+  - subclass_id: '3'
+    code: Purchase A item(s) and B item(s), get Z% off
+    code_zh: 购买A件和B件商品打Z折
+    code_zh_tw: 購買A件和B件商品打Z折
+    code_jp: X個アイテムを購入すると、Y％の割引が適
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: D
+    stackable: 0
+  - subclass_id: '4'
+    code: Purchase A item(s) , B item(s) and C item(s), get Z% off
+    code_zh: 购买A件、B件和C件商品打Z折
+    code_zh_tw: 購買A件、B件和C件商品打Z折
+    code_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    description: Discount percentage is applied to the line items
+    description_zh: 折扣百分比应用于商品行项目
+    description_zh_tw: 折扣百分比應用於商品行項目
+    description_jp: X個アイテムを購入すると、Y％の割引が適用されます
+    class_id: D
+    stackable: 0
+promotion_template_default_p:
+  A:
+    '0':
+      result:
+        - discount_type: PERCENT_OFF
+      item_set: 1
+    '1':
+      condition:
+        - condition_type: Amount
+          threshold_style: '>='
+      result:
+        - apply_type: Transaction
+          discount_type: CURRENCY_OFF
+          action_qty: ''
+      item_set: 1
+    '2':
+      condition:
+        - condition_type: Amount
+          threshold_style: '>='
+      result:
+        - apply_type: Transaction
+          discount_type: PERCENT_OFF
+          action_qty: ''
+      item_set: 1
+    '4':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          action_qty: ''
+      item_set: 1
+    '5':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          action_qty: ''
+      item_set: 1
+    '6':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Transaction
+          discount_type: CURRENCY_OFF
+          action_qty: ''
+      item_set: 1
+    '7':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: CURRENCY_OFF
+          action_qty: ''
+      item_set: 1
+    '8':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+          MinQty: 1
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          action_qty: ''
+      item_set: 1      
+  B:
+    '0':
+      result:
+        - discount_type: NEW_PRICE
+      item_set: 1
+    '1':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: NEW_PRICE
+      item_set: 1
+    '2':
+      condition:
+        - condition_type: Amount
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: NEW_PRICE
+      item_set: 1
+    '3':
+      condition:
+        - condition_type: Amount
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: NEW_PRICE
+      item_set: 2
+    '4':
+      condition:
+        - condition_type: Quantity
+      result:
+        - apply_type: Line
+      item_set: 0
+    '5':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - {}
+        - apply_type: Line
+          discount_type: NEW_PRICE
+          action_qty: ''
+      item_set: 0
+    '99':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: NEW_PRICE
+      item_set: 0
+    '6':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+          MinQty: 1
+      result:
+        - apply_type: Line
+          discount_type: NEW_PRICE
+      item_set: 1
+  C:
+    '0':
+      result:
+        - discount_type: PERCENT_OFF
+      item_set: 2
+    '1':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          discount_value: '100'
+      item_set: 2
+    '2':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          discount_value: '100'
+      item_set: 2
+    '3':
+      condition:
+        - condition_type: Amount
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          discount_value: '100'
+      item_set: 2
+    '4':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+          discount_value: '100'
+      item_set: 2
+  D:
+    '0':
+      result:
+        - discount_type: PERCENT_OFF
+      item_set: 2
+    '1':
+      condition:
+        - condition_type: Quantity
+          threshold_style: Every Quantity
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+      item_set: 2
+    '2':
+      condition:
+        - condition_type: Quantity
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+      item_set: 2
+    '3':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+      item_set: 2
+    '4':
+      condition:
+        - condition_type: Quantity
+          threshold_style: '>='
+        - condition_type: Quantity
+          threshold_style: '>='
+        - condition_type: Quantity
+          threshold_style: '>='
+      result:
+        - apply_type: Line
+          discount_type: PERCENT_OFF
+      item_set: 2
