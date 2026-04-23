@@ -925,396 +925,61 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         list: 格式化的促销数据列表
     """
     app_logger.info(f"开始处理促销数据，promotion_id: {promotion_id}, location_id: {location_id}")
-    data_detail = []
 
     try:
         # 获取基础促销数据
-        app_logger.debug(f"获取促销基础数据，promotion_id: {promotion_id}")
         promotion_data = await get_promotion_by_id(session, promotion_id)
         if not promotion_data:
             app_logger.warning(f"未找到促销数据，promotion_id: {promotion_id}")
-            return data_detail
+            return []
 
-        app_logger.debug(f"获取促销结果数据，promotion_id: {promotion_id}")
         promotion_result_data = await get_promotion_result_by_id(session, promotion_id)
-
-        app_logger.debug(f"获取促销条件数据，promotion_id: {promotion_id}")
         promotion_condition_data = await get_promotion_condition_by_id(session, promotion_id)
-
-        app_logger.debug(f"获取促销商品段数据，promotion_id: {promotion_id}")
         promotion_item_segments_data_all = await get_promotion_item_segments_by_id(session, promotion_id)
-
-        app_logger.debug(f"获取促销客户段数据，promotion_id: {promotion_id}")
         promotion_cust_segments_data = await get_promotion_customer_segments_by_id(session, promotion_id)
 
-        has_all_item = any(item['name'] == 'ALL ITEM' for item in promotion_item_segments_data_all)
-        app_logger.debug(f"ALL ITEM 是否存在，promotion_id: {promotion_id}, has_all_item: {has_all_item}")
-        app_logger.debug(f"ALL ITEM 删除前，promotion_item_segments_data_all: {promotion_item_segments_data_all}")
+        # 过滤掉 ALL ITEM
         promotion_item_segments_data = [
             item for item in promotion_item_segments_data_all
             if item['name'] != 'ALL ITEM'
         ]
-        app_logger.debug(f"ALL ITEM 删除后，promotion_item_segments_data: {promotion_item_segments_data}")
 
-        # 提取关键字段
-        promotion_status = promotion_data.promotion_status
-        begin_date = promotion_data.start_date
-        end_date = promotion_data.end_date
-        name = promotion_data.name
-        promotion_group = promotion_data.promotion_group
-        level_id = promotion_data.promotion_level
-        promotion_type = promotion_data.promotion_type
-        coupon_code = promotion_data.coupon_code
-        class_id = promotion_data.class_id
-        subclass_id = promotion_data.subclass_id
-        iteration_cap = promotion_data.iteration_cap
-        stackable = promotion_data.stackable
+        # 提取配置信息
+        config = _extract_promotion_config(promotion_data, promotion_result_data, promotion_condition_data)
+        item_set = _get_item_set_type(promotion_data.org_id, config['class_id'], config['subclass_id'])
 
-        app_logger.debug(f"提取配置信息，class_id: {class_id}, subclass_id: {subclass_id}")
-
-        PROMOTION_MNT_DEFAULT = get_promotion_config(promotion_data.org_id, 'promotion_template_default_p')
-
-        app_logger.debug(
-            f"PROMOTION_MNT_DEFAULT: {PROMOTION_MNT_DEFAULT}"
-        )
-        item_set = PROMOTION_MNT_DEFAULT[class_id][subclass_id].get('item_set', 2)
-
-        # 初始化默认值
-        discount_type = None
-        discount_value = None
-        apply_type = None
-        overlap = None
-        action_qty = None
-        condition_type = None
-        qty_min = None
-        qty_max = None
-        MinItemTotal = None
-
-        # 安全获取结果数据
-        if promotion_result_data:
-            discount_type = promotion_result_data[0].discount_type
-            discount_value = promotion_result_data[0].discount_value
-            apply_type = promotion_result_data[0].apply_type
-            overlap = promotion_result_data[0].overlap
-            action_qty = promotion_result_data[0].action_qty
-
-        # 安全获取条件数据
-        if promotion_condition_data:
-            condition_type = promotion_condition_data[0].condition_type
-            qty_min = promotion_condition_data[0].MinQty
-            qty_max = promotion_condition_data[0].MaxQty
-            MinItemTotal = promotion_condition_data[0].MinItemTotal
-
-        PRC_DEAL, PRC_DEAL_P, PRC_DEAL_ITEM, PRC_DEAL_FIELD_TEST, PRC_DEAL_LOC, PRC_DEAL_TRIG, DSC_COUPON_XREF = [], [], [], [], [], [], []
+        # 初始化数据容器
+        data_containers = {
+            'PRC_DEAL': [],
+            'PRC_DEAL_P': [],
+            'PRC_DEAL_ITEM': [],
+            'PRC_DEAL_FIELD_TEST': [],
+            'PRC_DEAL_LOC': [],
+            'PRC_DEAL_TRIG': [],
+            'DSC_COUPON_XREF': []
+        }
 
         # 只处理激活或非激活状态的促销
-        if promotion_status in ['active', 'inactive']:
-            app_logger.debug(f"处理促销状态数据，status: {promotion_status}")
+        if config['promotion_status'] not in ['active', 'inactive']:
+            app_logger.info(f"促销状态不需要处理，promotion_id: {promotion_id}, status: {config['promotion_status']}")
+            return []
 
-            # 构建DEAL数据
-            DEAL = {
-                **promotion_mapping["DEAL"],
-                "deal_id": promotion_id,
-                "description": name,
-                "consumable": promotion_group,
-                "act_deferred": 0 if promotion_status == 'active' else 1,
-                "effective_date": begin_date.strftime('%Y-%m-%d %H:%M:%S') if begin_date else None,
-                "end_date": end_date.strftime('%Y-%m-%d %H:%M:%S') if end_date else None,
-                "iteration_cap": iteration_cap,
-                "trans_deal_flag": 0 if apply_type == 'Line' else 1,
-                "group_id": f"{level_id}" if apply_type == 'Line' and level_id and level_id > 0 else None,
-                "sort_order": level_id if level_id is not None and apply_type == 'Transaction' else 0
-            }
+        # 构建各类数据
+        _build_deal_data(data_containers, promotion_id, config, item_set)
+        if config['stackable'] >= 0:
+            _build_deal_p_data(data_containers, promotion_id, config['stackable'], config['subclass_id'],
+                               config['set_ids'])
+        _build_deal_item_data(data_containers, promotion_id, config, item_set, promotion_condition_data,
+                              promotion_result_data)
+        _build_deal_field_test_data(data_containers, promotion_id, config['subclass_id'], item_set,
+                                    promotion_item_segments_data)
+        _build_deal_loc_data(data_containers, promotion_id, config['subclass_id'], config['set_ids'], location_id)
+        _build_deal_trig_data(data_containers, promotion_id, config['subclass_id'], config['set_ids'],
+                              promotion_cust_segments_data, config['promotion_type'], config['coupon_code'],
+                              config['promotion_status'])
 
-            if apply_type == 'Transaction':
-                DEAL['trwide_action'] = discount_type
-                DEAL['trwide_amount'] = discount_value
-
-            # PRC_DEAL.append(DEAL)
-            set_ids = extract_unique_set_ids(promotion_condition_data)
-            app_logger.debug(f"处理促销条件数据，set_ids: {set_ids},subclass_id :{subclass_id}")
-
-            if stackable:
-                DEAL_P = {**promotion_mapping["DEAL_P"],
-                          "deal_id": promotion_id,
-                          "string_value": 'Enable'}
-            else:
-                DEAL_P = {**promotion_mapping["DEAL_P"],
-                          "deal_id": promotion_id,
-                          "string_value": 'Disable'}
-
-            if subclass_id == '99':
-                for set_id in set_ids:
-                    deal_copy = DEAL.copy()
-                    deal_copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                    PRC_DEAL.append(deal_copy)
-
-                    deal_p_copy = DEAL_P.copy()
-                    deal_p_copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                    PRC_DEAL_P.append(deal_p_copy)
-
-                    app_logger.debug(f"拆分促销数据，deal_id: {DEAL['deal_id']},set_id:{set_id['set_id']}")
-            else:
-                PRC_DEAL.append(DEAL)
-                PRC_DEAL_P.append(DEAL_P)
-
-            data_detail.append(
-                {'table': 'PRC_DEAL', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
-                 "data": PRC_DEAL})
-
-            data_detail.append(
-                {'table': 'PRC_DEAL_P', 'table_key': ['organization_id', 'deal_id', 'property_code'],
-                 "action": "DELETE_AND_INSERT",
-                 "data": PRC_DEAL_P})
-
-            # 根据item_set类型处理不同的数据结构
-            if item_set == 1:
-                app_logger.debug("处理item_set类型1")
-                DEAL_ITEM_1 = {
-                    **promotion_mapping["DEAL_ITEM_1"],
-                    "deal_id": promotion_id,
-                    "item_ordinal": 1,
-                    "consumable": 1 if overlap == 0 else 0,
-                    "qty_min": qty_min if qty_min else 1,
-                    "qty_max": qty_max if qty_min else 9999,
-                    "min_item_total": MinItemTotal if condition_type == 'Amount' else None,
-                    "deal_action": discount_type if apply_type == 'Line' else None,
-                    "action_arg": discount_value if apply_type == 'Line' else None,
-                    "action_arg_qty": action_qty if action_qty and action_qty > 0 else None
-                }
-                PRC_DEAL_ITEM.append(DEAL_ITEM_1)
-
-            elif item_set == 2:
-                app_logger.debug("处理item_set类型2")
-                for condition in promotion_condition_data:
-                    DEAL_ITEM_1 = {
-                        **promotion_mapping["DEAL_ITEM_1"],
-                        "deal_id": promotion_id,
-                        "item_ordinal": condition.set_id,
-                        "consumable": 1 if overlap == 0 else 0,
-                        "qty_min": condition.MinQty if condition.MinQty else 1,
-                        "qty_max": condition.MaxQty if condition.MinQty else 9999,
-                        "min_item_total": condition.MinItemTotal if condition.condition_type == 'Amount' else None
-                    }
-                    PRC_DEAL_ITEM.append(DEAL_ITEM_1)
-
-                for result in promotion_result_data:
-                    DEAL_ITEM_2 = {
-                        **promotion_mapping["DEAL_ITEM_2"],
-                        "deal_id": promotion_id,
-                        "item_ordinal": result.set_id,
-                        "consumable": 1 if result.overlap == 0 else 0,
-                        "qty_min": result.action_qty if result.action_qty and result.action_qty > 0 else 1,
-                        "qty_max": result.action_qty if result.action_qty and result.action_qty > 0 else 99999,
-                        "deal_action": result.discount_type if result.apply_type == 'Line' else None,
-                        "action_arg": result.discount_value if result.apply_type == 'Line' else None,
-                        "action_arg_qty": result.action_qty if result.action_qty and result.action_qty > 0 else None
-                    }
-                    PRC_DEAL_ITEM.append(DEAL_ITEM_2)
-
-            elif item_set == 0:
-                app_logger.debug("处理item_set类型0")
-                result_by_set_id = {result.set_id: result for result in promotion_result_data}
-
-                for condition in promotion_condition_data:
-                    set_id = condition.set_id  # 正确：直接访问对象属性
-                    # 根据 set_id 找到对应的 result 数据
-                    result_data = result_by_set_id.get(set_id)
-
-                    if result_data:
-                        DEAL_ITEM_0 = {
-                            **promotion_mapping["DEAL_ITEM_1"],
-                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{set_id}",
-                            "item_ordinal": set_id,
-                            "consumable": 1 if overlap == 0 else 0,
-                            "qty_min": condition.MinQty if condition.MinQty is not None else 1,  # 正确：直接访问对象属性
-                            "qty_max": condition.MaxQty if condition.MaxQty is not None else 9999,  # 正确：直接访问对象属性
-                            "min_item_total": condition.MinItemTotal if condition.condition_type == 'Amount' else None,
-                            "deal_action": result_data.discount_type if result_data.apply_type == 'Line' else None,
-                            "action_arg": result_data.discount_value if result_data.apply_type == 'Line' else None,
-                            "action_arg_qty": result_data.action_qty if result_data.action_qty is not None and result_data.action_qty > 0 else None
-                        }
-                        PRC_DEAL_ITEM.append(DEAL_ITEM_0)
-            data_detail.append(
-                {'table': 'PRC_DEAL_ITEM', 'table_key': ['organization_id', 'deal_id'],
-                 "action": "DELETE_AND_INSERT",
-                 "data": PRC_DEAL_ITEM})
-
-            from collections import defaultdict
-
-            grouped_items = defaultdict(list)
-            app_logger.debug(f'grouped_items:{grouped_items}')
-            for item in promotion_item_segments_data:
-                grouped_items[item['set_id']].append(item)
-
-            for set_id in sorted(grouped_items.keys()):
-
-                equal_items = [item for item in grouped_items[set_id] if item['include'] == 1]
-                not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
-
-                serial_number = 1
-                if equal_items:
-                    for item in equal_items:
-
-                        item_condition_seq = 1
-                        item_type = 1 if item['item_type'] == 'Condition' else 2
-                        if item_set in [1, 0] and item_type != 1:
-                            app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
-                            continue
-                        DEAL_ITEM_TEST = {
-                            **promotion_mapping["DEAL_ITEM_TEST"],
-                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
-                            "item_ordinal": item['set_id'],
-                            "item_condition_group": serial_number,
-                            "item_condition_seq": item_condition_seq,
-                            "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
-                            "match_rule": 'EQUAL'
-                        }
-                        PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-
-                        # not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
-                        app_logger.debug(f'not_equal_items: {not_equal_items}')
-                        for not_item in not_equal_items:
-                            item_condition_seq += 1
-                            item_type = 1 if not_item['item_type'] == 'Condition' else 2
-                            if item_set in [1, 0] and item_type != 1:
-                                app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
-                                continue
-                            DEAL_ITEM_TEST = {
-                                **promotion_mapping["DEAL_ITEM_TEST"],
-                                "deal_id": promotion_id,
-                                "item_ordinal": not_item['set_id'],
-                                "item_condition_group": serial_number,
-                                "item_condition_seq": item_condition_seq,
-                                "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
-                                "match_rule": 'NOT_EQUAL'
-                            }
-                            PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-                        serial_number += 1
-                elif not_equal_items:
-                    for not_item in not_equal_items:
-                        item_condition_seq = 1
-                        item_type = 1 if not_item['item_type'] == 'Condition' else 2
-                        if item_set in [1, 0] and item_type != 1:
-                            app_logger.debug(f'return item_set : {item_set},item_type: {item_type}')
-                            continue
-
-                        DEAL_ITEM_TEST = {
-                            **promotion_mapping["DEAL_ITEM_TEST"],
-                            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
-                            "item_ordinal": not_item['set_id'],
-                            "item_condition_group": serial_number,
-                            "item_condition_seq": item_condition_seq,
-                            "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
-                            "match_rule": 'NOT_EQUAL'
-                        }
-                        PRC_DEAL_FIELD_TEST.append(DEAL_ITEM_TEST)
-                        serial_number += 1
-
-            app_logger.debug(f"PRC_DEAL_FIELD_TEST:{PRC_DEAL_FIELD_TEST}")
-            # data_detail.append(
-            #     {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
-            #      "action": "DELETE_AND_INSERT",
-            #      "data": PRC_DEAL_FIELD_TEST})
-
-            if PRC_DEAL_FIELD_TEST:
-                data_detail.append(
-                    {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'],
-                     "action": "DELETE_AND_INSERT",
-                     "data": PRC_DEAL_FIELD_TEST})
-            else:
-                mock_deal_item = {
-                    **promotion_mapping["DEAL_ITEM_TEST"],
-                    "deal_id": promotion_id,
-                }
-                data_detail.append(
-                    {'table': 'PRC_DEAL_FIELD_TEST', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE",
-                     "data": [mock_deal_item]})
-
-
-            DEAL_LOC = {
-                **promotion_mapping["PRC_DEAL_LOC"],
-                "deal_id": promotion_id,
-                "rtl_loc_id": location_id
-            }
-
-            if subclass_id == '99':
-                for set_id in set_ids:
-                    DEAL_LOC_Copy = DEAL_LOC.copy()
-                    DEAL_LOC_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                    PRC_DEAL_LOC.append(DEAL_LOC_Copy)
-            else:
-                PRC_DEAL_LOC.append(DEAL_LOC)
-
-            data_detail.append(
-                {'table': 'PRC_DEAL_LOC', 'table_key': ['organization_id', 'deal_id'], "action": "DELETE_AND_INSERT",
-                 "data": PRC_DEAL_LOC})
-
-            # 处理触发器数据
-            for cust in promotion_cust_segments_data:
-                DEAL_TRIG = {
-                    **promotion_mapping["PRC_DEAL_TRIG"],
-                    "deal_id": promotion_id,
-                    "deal_trigger": f"SEGMENT:{'' if cust['include'] else '~'}{cust['segment_id']}"}
-
-                if subclass_id == '99':
-                    for set_id in set_ids:
-                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
-                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
-                else:
-                    PRC_DEAL_TRIG.append(DEAL_LOC)
-
-                # PRC_DEAL_TRIG.append(DEAL_TRIG)
-
-            # 处理优惠券数据
-            if promotion_type and coupon_code:
-                DEAL_TRIG = {
-                    **promotion_mapping["PRC_DEAL_TRIG"],
-                    "deal_id": promotion_id,
-                    "deal_trigger": f"COUPON:INPUT_COUPON:{coupon_code}"}
-
-                if subclass_id == '99':
-                    for set_id in set_ids:
-                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
-                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
-                else:
-                    PRC_DEAL_TRIG.append(DEAL_LOC)
-                # PRC_DEAL_TRIG.append(DEAL_TRIG)
-
-                DSC_COUPON_XREF = [{
-                    **promotion_mapping["DSC_COUPON_XREF"],
-                    "coupon_serial_nbr": coupon_code,
-                    "expiration_date": '2029-01-01' if promotion_status == 'active' else '2019-01-01'
-                }]
-                data_detail.append(
-                    {'table': 'DSC_COUPON_XREF', 'table_key': ['organization_id', 'coupon_serial_nbr'],
-                     "action": "INSERT_AND_UPDATE",
-                     "data": DSC_COUPON_XREF})
-
-            if PRC_DEAL_TRIG:
-                data_detail.append(
-                    {'table': 'PRC_DEAL_TRIG', 'table_key': ['organization_id', 'deal_id'],
-                     "action": "DELETE_AND_INSERT",
-                     "data": PRC_DEAL_TRIG})
-            else:
-                DEAL_TRIG = {"organization_id": promotion_mapping["PRC_DEAL_TRIG"]["organization_id"],
-                             "deal_id": promotion_id}
-
-                if subclass_id == '99':
-                    for set_id in set_ids:
-                        DEAL_TRIG_Copy = DEAL_TRIG.copy()
-                        DEAL_TRIG_Copy["deal_id"] = f"{promotion_id}:{set_id['set_id']}"
-                        PRC_DEAL_TRIG.append(DEAL_TRIG_Copy)
-                else:
-                    PRC_DEAL_TRIG.append(DEAL_LOC)
-
-                data_detail.append({'table': 'PRC_DEAL_TRIG', 'table_key': ['organization_id', 'deal_id'],
-                                    "action": "DELETE",
-                                    "data": PRC_DEAL_TRIG})
-
-                app_logger.info(f"促销数据无触发器，promotion_id: {promotion_id}")
+        # 组装最终结果
+        data_detail = _assemble_data_detail(data_containers, promotion_id, config['subclass_id'], config['set_ids'])
 
         app_logger.info(f"完成促销数据处理，promotion_id: {promotion_id}, 生成数据项数: {len(data_detail)}")
         return data_detail
@@ -1322,6 +987,451 @@ async def process_promotion_data(promotion_id: int, session, location_id):
     except Exception as e:
         app_logger.error(f"处理促销数据时发生错误，promotion_id: {promotion_id}, 错误: {str(e)}", exc_info=True)
         raise e
+
+
+def _extract_promotion_config(promotion_data, promotion_result_data, promotion_condition_data):
+    """提取促销配置信息"""
+    config = {
+        'promotion_status': promotion_data.promotion_status,
+        'begin_date': promotion_data.start_date,
+        'end_date': promotion_data.end_date,
+        'name': promotion_data.name,
+        'promotion_group': promotion_data.promotion_group,
+        'level_id': promotion_data.promotion_level,
+        'promotion_type': promotion_data.promotion_type,
+        'coupon_code': promotion_data.coupon_code,
+        'class_id': promotion_data.class_id,
+        'subclass_id': promotion_data.subclass_id,
+        'iteration_cap': promotion_data.iteration_cap,
+        'stackable': promotion_data.stackable,
+        'discount_type': None,
+        'discount_value': None,
+        'apply_type': None,
+        'overlap': None,
+        'action_qty': None,
+        'condition_type': None,
+        'qty_min': None,
+        'qty_max': None,
+        'MinItemTotal': None,
+        'set_ids': []
+    }
+
+    # 安全获取结果数据
+    if promotion_result_data:
+        first_result = promotion_result_data[0]
+        config.update({
+            'discount_type': first_result.discount_type,
+            'discount_value': first_result.discount_value,
+            'apply_type': first_result.apply_type,
+            'overlap': first_result.overlap,
+            'action_qty': first_result.action_qty
+        })
+
+    # 安全获取条件数据
+    if promotion_condition_data:
+        first_condition = promotion_condition_data[0]
+        config.update({
+            'condition_type': first_condition.condition_type,
+            'qty_min': first_condition.MinQty,
+            'qty_max': first_condition.MaxQty,
+            'MinItemTotal': first_condition.MinItemTotal
+        })
+        config['set_ids'] = extract_unique_set_ids(promotion_condition_data)
+
+    return config
+
+
+def _get_item_set_type(org_id, class_id, subclass_id):
+    """获取 item_set 类型"""
+    promotion_config = get_promotion_config(org_id, 'promotion_template_default_p')
+    return promotion_config[class_id][subclass_id].get('item_set', 2)
+
+
+def _build_deal_data(data_containers, promotion_id, config, item_set):
+    """构建 DEAL 数据"""
+    deal_template = {
+        **promotion_mapping["DEAL"],
+        "deal_id": promotion_id,
+        "description": config['name'],
+        "consumable": config['promotion_group'],
+        "act_deferred": 0 if config['promotion_status'] == 'active' else 1,
+        "effective_date": config['begin_date'].strftime('%Y-%m-%d %H:%M:%S') if config['begin_date'] else None,
+        "end_date": config['end_date'].strftime('%Y-%m-%d %H:%M:%S') if config['end_date'] else None,
+        "iteration_cap": config['iteration_cap'],
+        "trans_deal_flag": 0 if config['apply_type'] == 'Line' else 1,
+        "group_id": f"{config['level_id']}" if config['apply_type'] == 'Line' and config['level_id'] and config[
+            'level_id'] > 0 else None,
+        "sort_order": config['level_id'] if config['level_id'] is not None and config[
+            'apply_type'] == 'Transaction' else 0
+    }
+
+    if config['apply_type'] == 'Transaction':
+        deal_template['trwide_action'] = config['discount_type']
+        deal_template['trwide_amount'] = config['discount_value']
+
+    # 根据 subclass_id 和 item_set 决定是否需要拆分
+    if config['subclass_id'] == '99' and item_set == 2:
+        for set_id_info in config['set_ids']:
+            deal_copy = deal_template.copy()
+            deal_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+            data_containers['PRC_DEAL'].append(deal_copy)
+    else:
+        data_containers['PRC_DEAL'].append(deal_template)
+
+
+def _build_deal_p_data(data_containers, promotion_id, stackable, subclass_id, set_ids):
+    """构建 DEAL_P 数据"""
+    deal_p_template = {
+        **promotion_mapping["DEAL_P"],
+        "deal_id": promotion_id,
+        "string_value": 'Enable' if stackable else 'Disable'
+    }
+
+    if subclass_id == '99':
+        for set_id_info in set_ids:
+            deal_p_copy = deal_p_template.copy()
+            deal_p_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+            data_containers['PRC_DEAL_P'].append(deal_p_copy)
+    else:
+        data_containers['PRC_DEAL_P'].append(deal_p_template)
+
+
+def _build_deal_item_data(data_containers, promotion_id, config, item_set, promotion_condition_data,
+                          promotion_result_data):
+    """构建 DEAL_ITEM 数据"""
+    if item_set == 1:
+        _build_deal_item_type_1(data_containers, promotion_id, config)
+    elif item_set == 2:
+        _build_deal_item_type_2(data_containers, promotion_id, config, promotion_condition_data, promotion_result_data)
+    elif item_set == 0:
+        _build_deal_item_type_0(data_containers, promotion_id, config, promotion_condition_data, promotion_result_data)
+
+
+def _build_deal_item_type_1(data_containers, promotion_id, config):
+    """构建 item_set 类型 1 的 DEAL_ITEM"""
+    deal_item = {
+        **promotion_mapping["DEAL_ITEM_1"],
+        "deal_id": promotion_id,
+        "item_ordinal": 1,
+        "consumable": 1 if config['overlap'] == 0 else 0,
+        "qty_min": config['qty_min'] if config['qty_min'] else 1,
+        "qty_max": config['qty_max'] if config['qty_min'] else 9999,
+        "min_item_total": config['MinItemTotal'] if config['condition_type'] == 'Amount' else None,
+        "deal_action": config['discount_type'] if config['apply_type'] == 'Line' else None,
+        "action_arg": config['discount_value'] if config['apply_type'] == 'Line' else None,
+        "action_arg_qty": config['action_qty'] if config['action_qty'] and config['action_qty'] > 0 else None
+    }
+    data_containers['PRC_DEAL_ITEM'].append(deal_item)
+
+
+def _build_deal_item_type_2(data_containers, promotion_id, config, promotion_condition_data, promotion_result_data):
+    """构建 item_set 类型 2 的 DEAL_ITEM"""
+    # 添加条件数据
+    for condition in promotion_condition_data:
+        deal_item = {
+            **promotion_mapping["DEAL_ITEM_1"],
+            "deal_id": promotion_id,
+            "item_ordinal": condition.set_id,
+            "consumable": 1 if config['overlap'] == 0 else 0,
+            "qty_min": condition.MinQty if condition.MinQty else 1,
+            "qty_max": condition.MaxQty if condition.MinQty else 9999,
+            "min_item_total": condition.MinItemTotal if condition.condition_type == 'Amount' else None
+        }
+        data_containers['PRC_DEAL_ITEM'].append(deal_item)
+
+    # 添加结果数据
+    for result in promotion_result_data:
+        deal_item = {
+            **promotion_mapping["DEAL_ITEM_2"],
+            "deal_id": promotion_id,
+            "item_ordinal": result.set_id,
+            "consumable": 1 if result.overlap == 0 else 0,
+            "qty_min": result.action_qty if result.action_qty and result.action_qty > 0 else 1,
+            "qty_max": result.action_qty if result.action_qty and result.action_qty > 0 else 99999,
+            "deal_action": result.discount_type if result.apply_type == 'Line' else None,
+            "action_arg": result.discount_value if result.apply_type == 'Line' else None,
+            "action_arg_qty": result.action_qty if result.action_qty and result.action_qty > 0 else None
+        }
+        data_containers['PRC_DEAL_ITEM'].append(deal_item)
+
+
+def _build_deal_item_type_0(data_containers, promotion_id, config, promotion_condition_data, promotion_result_data):
+    """构建 item_set 类型 0 的 DEAL_ITEM"""
+    result_by_set_id = {result.set_id: result for result in promotion_result_data}
+
+    for condition in promotion_condition_data:
+        set_id = condition.set_id
+        result_data = result_by_set_id.get(set_id)
+
+        if result_data:
+            deal_item = {
+                **promotion_mapping["DEAL_ITEM_1"],
+                "deal_id": promotion_id if config['subclass_id'] != '99' else f"{promotion_id}:{set_id}",
+                "item_ordinal": set_id,
+                "consumable": 1 if config['overlap'] == 0 else 0,
+                "qty_min": condition.MinQty if condition.MinQty is not None else 1,
+                "qty_max": condition.MaxQty if condition.MaxQty is not None else 9999,
+                "min_item_total": condition.MinItemTotal if condition.condition_type == 'Amount' else None,
+                "deal_action": result_data.discount_type if result_data.apply_type == 'Line' else None,
+                "action_arg": result_data.discount_value if result_data.apply_type == 'Line' else None,
+                "action_arg_qty": result_data.action_qty if result_data.action_qty is not None and result_data.action_qty > 0 else None
+            }
+            data_containers['PRC_DEAL_ITEM'].append(deal_item)
+
+
+def _build_deal_field_test_data(data_containers, promotion_id, subclass_id, item_set, promotion_item_segments_data):
+    """构建 DEAL_FIELD_TEST 数据"""
+    from collections import defaultdict
+
+    grouped_items = defaultdict(list)
+    for item in promotion_item_segments_data:
+        grouped_items[item['set_id']].append(item)
+
+    for set_id in sorted(grouped_items.keys()):
+        equal_items = [item for item in grouped_items[set_id] if item['include'] == 1]
+        not_equal_items = [item for item in grouped_items[set_id] if item['include'] == 0]
+
+        serial_number = 1
+
+        if equal_items:
+            _process_equal_items(data_containers, promotion_id, subclass_id, item_set,
+                                 equal_items, not_equal_items, serial_number)
+        elif not_equal_items:
+            _process_not_equal_items_only(data_containers, promotion_id, subclass_id, item_set,
+                                          not_equal_items, serial_number)
+
+
+def _process_equal_items(data_containers, promotion_id, subclass_id, item_set,
+                         equal_items, not_equal_items, start_serial):
+    """处理包含 equal items 的情况"""
+    serial_number = start_serial
+
+    for item in equal_items:
+        item_condition_seq = 1
+        item_type = 1 if item['item_type'] == 'Condition' else 2
+
+        if item_set in [1, 0] and item_type != 1:
+            continue
+
+        deal_field_test = {
+            **promotion_mapping["DEAL_ITEM_TEST"],
+            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
+            "item_ordinal": item['set_id'],
+            "item_condition_group": serial_number,
+            "item_condition_seq": item_condition_seq,
+            "item_field": f"ITEM_PROPERTY:ITM_PROP_{item['segment_id']}",
+            "match_rule": 'EQUAL'
+        }
+        data_containers['PRC_DEAL_FIELD_TEST'].append(deal_field_test)
+
+        # 添加 not equal items
+        for not_item in not_equal_items:
+            item_condition_seq += 1
+            not_item_type = 1 if not_item['item_type'] == 'Condition' else 2
+
+            if item_set in [1, 0] and not_item_type != 1:
+                continue
+
+            deal_field_test = {
+                **promotion_mapping["DEAL_ITEM_TEST"],
+                "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+                "item_ordinal": not_item['set_id'],
+                "item_condition_group": serial_number,
+                "item_condition_seq": item_condition_seq,
+                "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
+                "match_rule": 'NOT_EQUAL'
+            }
+            data_containers['PRC_DEAL_FIELD_TEST'].append(deal_field_test)
+
+        serial_number += 1
+
+
+def _process_not_equal_items_only(data_containers, promotion_id, subclass_id, item_set,
+                                  not_equal_items, start_serial):
+    """处理只有 not equal items 的情况"""
+    serial_number = start_serial
+
+    for not_item in not_equal_items:
+        item_condition_seq = 1
+        item_type = 1 if not_item['item_type'] == 'Condition' else 2
+
+        if item_set in [1, 0] and item_type != 1:
+            continue
+
+        deal_field_test = {
+            **promotion_mapping["DEAL_ITEM_TEST"],
+            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+            "item_ordinal": not_item['set_id'],
+            "item_condition_group": serial_number,
+            "item_condition_seq": item_condition_seq,
+            "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
+            "match_rule": 'NOT_EQUAL'
+        }
+        data_containers['PRC_DEAL_FIELD_TEST'].append(deal_field_test)
+        serial_number += 1
+
+
+def _build_deal_loc_data(data_containers, promotion_id, subclass_id, set_ids, location_id):
+    """构建 DEAL_LOC 数据"""
+    deal_loc_template = {
+        **promotion_mapping["PRC_DEAL_LOC"],
+        "deal_id": promotion_id,
+        "rtl_loc_id": location_id
+    }
+
+    if subclass_id == '99':
+        for set_id_info in set_ids:
+            deal_loc_copy = deal_loc_template.copy()
+            deal_loc_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+            data_containers['PRC_DEAL_LOC'].append(deal_loc_copy)
+    else:
+        data_containers['PRC_DEAL_LOC'].append(deal_loc_template)
+
+
+def _build_deal_trig_data(data_containers, promotion_id, subclass_id, set_ids,
+                          promotion_cust_segments_data, promotion_type, coupon_code, promotion_status):
+    """构建 DEAL_TRIG 和 COUPON_XREF 数据"""
+    # 处理客户分群触发器
+    for cust in promotion_cust_segments_data:
+        deal_trig = {
+            **promotion_mapping["PRC_DEAL_TRIG"],
+            "deal_id": promotion_id,
+            "deal_trigger": f"SEGMENT:{'' if cust['include'] else '~'}{cust['segment_id']}"
+        }
+
+        if subclass_id == '99':
+            for set_id_info in set_ids:
+                deal_trig_copy = deal_trig.copy()
+                deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+                data_containers['PRC_DEAL_TRIG'].append(deal_trig_copy)
+        else:
+            data_containers['PRC_DEAL_TRIG'].append(deal_trig)
+
+    # 处理优惠券触发器
+    if promotion_type and coupon_code:
+        deal_trig = {
+            **promotion_mapping["PRC_DEAL_TRIG"],
+            "deal_id": promotion_id,
+            "deal_trigger": f"COUPON:INPUT_COUPON:{coupon_code}"
+        }
+
+        if subclass_id == '99':
+            for set_id_info in set_ids:
+                deal_trig_copy = deal_trig.copy()
+                deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+                data_containers['PRC_DEAL_TRIG'].append(deal_trig_copy)
+        else:
+            data_containers['PRC_DEAL_TRIG'].append(deal_trig)
+
+        # 添加优惠券交叉引用数据
+        data_containers['DSC_COUPON_XREF'].append({
+            **promotion_mapping["DSC_COUPON_XREF"],
+            "coupon_serial_nbr": coupon_code,
+            "expiration_date": '2029-01-01' if promotion_status == 'active' else '2019-01-01'
+        })
+
+
+def _assemble_data_detail(data_containers, promotion_id, subclass_id, set_ids):
+    """组装最终的数据详情"""
+    data_detail = []
+
+    # PRC_DEAL
+    if data_containers['PRC_DEAL']:
+        data_detail.append({
+            'table': 'PRC_DEAL',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL']
+        })
+
+    # PRC_DEAL_P
+    if data_containers['PRC_DEAL_P']:
+        data_detail.append({
+            'table': 'PRC_DEAL_P',
+            'table_key': ['organization_id', 'deal_id', 'property_code'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL_P']
+        })
+
+    # PRC_DEAL_ITEM
+    if data_containers['PRC_DEAL_ITEM']:
+        data_detail.append({
+            'table': 'PRC_DEAL_ITEM',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL_ITEM']
+        })
+
+    # PRC_DEAL_FIELD_TEST
+    if data_containers['PRC_DEAL_FIELD_TEST']:
+        data_detail.append({
+            'table': 'PRC_DEAL_FIELD_TEST',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL_FIELD_TEST']
+        })
+    else:
+        mock_deal_item = {
+            **promotion_mapping["DEAL_ITEM_TEST"],
+            "deal_id": promotion_id,
+        }
+        data_detail.append({
+            'table': 'PRC_DEAL_FIELD_TEST',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE",
+            "data": [mock_deal_item]
+        })
+
+    # PRC_DEAL_LOC
+    if data_containers['PRC_DEAL_LOC']:
+        data_detail.append({
+            'table': 'PRC_DEAL_LOC',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL_LOC']
+        })
+
+    # PRC_DEAL_TRIG
+    if data_containers['PRC_DEAL_TRIG']:
+        data_detail.append({
+            'table': 'PRC_DEAL_TRIG',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE_AND_INSERT",
+            "data": data_containers['PRC_DEAL_TRIG']
+        })
+    else:
+        deal_trig_template = {
+            "organization_id": promotion_mapping["PRC_DEAL_TRIG"]["organization_id"],
+            "deal_id": promotion_id
+        }
+
+        prc_deal_trig_delete = []
+        if subclass_id == '99':
+            for set_id_info in set_ids:
+                deal_trig_copy = deal_trig_template.copy()
+                deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+                prc_deal_trig_delete.append(deal_trig_copy)
+        else:
+            prc_deal_trig_delete.append(deal_trig_template)
+
+        data_detail.append({
+            'table': 'PRC_DEAL_TRIG',
+            'table_key': ['organization_id', 'deal_id'],
+            "action": "DELETE",
+            "data": prc_deal_trig_delete
+        })
+        app_logger.info(f"促销数据无触发器，promotion_id: {promotion_id}")
+
+    # DSC_COUPON_XREF
+    if data_containers['DSC_COUPON_XREF']:
+        data_detail.append({
+            'table': 'DSC_COUPON_XREF',
+            'table_key': ['organization_id', 'coupon_serial_nbr'],
+            "action": "INSERT_AND_UPDATE",
+            "data": data_containers['DSC_COUPON_XREF']
+        })
+
+    return data_detail
 
 
 async def get_promotion_export_status(session: Session, promotion_id: int, key_word: str = None, page: int = 1,

@@ -181,8 +181,8 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
         os.makedirs(output_dir, exist_ok=True)
 
         # 生成带时间戳的文件名
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f'price_tag_{timestamp}.xlsx'
+        timestamp = datetime.now().strftime('%Y%m%d')
+        filename = f'{REMOTE_BASE_PATH}_Price_{timestamp}.xlsx'
         output_path = os.path.join(output_dir, filename)
 
 
@@ -204,7 +204,7 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
 
         df_regular = pd.DataFrame(regular_price_tags)
         if not df_regular.empty:
-            df_regular['PRICE TYPE'] = 'P0'
+            df_regular['PRICE TYPE'] = '01'
             df_regular['REMARKS'] = ''
 
         # 合并所有数据
@@ -254,6 +254,15 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
 
         df = df.rename(columns=column_mapping)
 
+        if 'PRODUCT PRICE' in df.columns:
+            df['PRODUCT PRICE'] = df['PRODUCT PRICE'].apply(
+                lambda x: f"{float(x):.2f}" if pd.notna(x) and x != '' else x
+            )
+        if 'MATERIAL NUMBER' in df.columns:
+            df['MATERIAL NUMBER'] = df['MATERIAL NUMBER'].apply(
+                lambda x: str(x).zfill(18) if pd.notna(x) and str(x).strip() != '' else x
+            )
+
         def safe_date_format(date_value):
             """安全地格式化日期，处理超出范围的日期"""
             if pd.isna(date_value):
@@ -266,13 +275,17 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
                 return dt.strftime('%Y-%m-%d')
             except (ValueError, TypeError, OverflowError):
                 # 如果转换失败，返回原始值或空字符串
-                return str(date_value) if date_value else ''
+                try:
+                    # 如果是字符串格式，尝试提取日期部分
+                    date_str = str(date_value).strip()
+                    if ' ' in date_str:
+                        date_str = date_str.split(' ')[0]
+                    return date_str if date_str else ''
+                except Exception:
+                    return ''
 
         df['VALID FROM'] = df['VALID FROM'].apply(safe_date_format)
         df['VALID TO'] = df['VALID TO'].apply(safe_date_format)
-        # 确保日期格式正确
-        # df['VALID FROM'] = pd.to_datetime(df['VALID FROM']).dt.strftime('%Y-%m-%d')
-        # df['VALID TO'] = pd.to_datetime(df['VALID TO']).dt.strftime('%Y-%m-%d')
 
         # 设置列顺序
         columns_order = ['PRICE TYPE', 'CUSTOMER CODE', 'MATERIAL NUMBER', 'GRID', 'SKU', 'EAN',
