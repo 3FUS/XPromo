@@ -1,0 +1,9 @@
+attributes:
+  - attribute_code: "CUSTGROUP"
+    data_type: "LIST"
+    data_values:
+      - ""
+      - "Silver"
+      - "Gold"
+      - "STAFF"
+    table_name: "PRC_DEAL_TRIG"
