@@ -49,19 +49,28 @@ jobs:
       - name: Download NSSM
         run: |
           # 下载 NSSM 到项目目录
-          $nssmUrl = "https://nssm.cc/release/nssm-2.24.zip"
           $outputPath = "nssm.zip"
+          $success = $false
           
-          # 使用 Invoke-WebRequest 替代 curl 进行下载
-          try {
-            Invoke-WebRequest -Uri $nssmUrl -OutFile $outputPath
-            Write-Host "NSSM downloaded successfully"
-          } catch {
-            Write-Host "Failed to download NSSM from primary URL, trying alternative..."
-            # 备用下载地址
-            $altUrl = "https://github.com/jemmyangel/nssm/releases/download/v2.24/nssm-2.24.zip"
-            Invoke-WebRequest -Uri $altUrl -OutFile $outputPath
-            Write-Host "NSSM downloaded from alternative URL"
+          # 下载源列表
+          $sources = @(
+            "https://github.com/bdehamer/nssm/releases/download/v2.24/nssm-2.24.zip",
+            "https://github.com/mbrownnyc/nssm/releases/download/v2.24/nssm-2.24.zip",
+            "https://github.com/jemmyangel/nssm/releases/download/v2.24/nssm-2.24.zip",
+            "https://github.com/erniebrodeur/nssm/releases/download/v2.24/nssm-2.24.zip"
+          )
+          
+          foreach ($source in $sources) {
+            try {
+              Write-Host "Attempting to download from: $source"
+              Invoke-WebRequest -Uri $source -OutFile $outputPath
+              Write-Host "Successfully downloaded NSSM from: $source"
+              $success = $true
+              break
+            } catch {
+              Write-Host "Failed to download from: $source - $($_.Exception.Message)"
+              continue
+            }
           }
           
           # 解压并复制 nssm.exe
