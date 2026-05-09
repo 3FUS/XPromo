@@ -49,8 +49,23 @@ jobs:
       - name: Download NSSM
         run: |
           # 下载 NSSM 到项目目录
-          curl -L -o nssm.zip https://nssm.cc/release/nssm-2.24.zip
-          Expand-Archive -Path nssm.zip -DestinationPath .
+          $nssmUrl = "https://nssm.cc/release/nssm-2.24.zip"
+          $outputPath = "nssm.zip"
+          
+          # 使用 Invoke-WebRequest 替代 curl 进行下载
+          try {
+            Invoke-WebRequest -Uri $nssmUrl -OutFile $outputPath
+            Write-Host "NSSM downloaded successfully"
+          } catch {
+            Write-Host "Failed to download NSSM from primary URL, trying alternative..."
+            # 备用下载地址
+            $altUrl = "https://github.com/jemmyangel/nssm/releases/download/v2.24/nssm-2.24.zip"
+            Invoke-WebRequest -Uri $altUrl -OutFile $outputPath
+            Write-Host "NSSM downloaded from alternative URL"
+          }
+          
+          # 解压并复制 nssm.exe
+          Expand-Archive -Path $outputPath -DestinationPath .
           Copy-Item "nssm-2.24/win64/nssm.exe" -Destination .
 
       - name: Build EXE with PyInstaller
