@@ -7,7 +7,7 @@ from sqlalchemy import and_, or_
 from models.model import Promotion, PromotionCondition, PromotionResult, PromotionItemSegments, \
     PromotionLocationSegments, PromotionCustomerSegments, SegmentsItem, SegmentsLocation, SegmentsCustomer, \
     PromotionNextSequence, SegmentsCustomerDetail, SegmentsLocationDetail, WorkerTask, PromotionOrgJoin, \
-    LOC_ORG_HIERARCHY, PromotionImport
+    LOC_ORG_HIERARCHY, PromotionImport, PromotionAttributes
 
 from sqlalchemy.orm import Session
 from service.utils import resolve_permissions_with_inheritance
@@ -88,6 +88,12 @@ async def update_promotion(session: Session, promotion_data: Promotion, user_id=
         updated_promotion = session.query(Promotion).filter(
             Promotion.promotion_id == promotion_data.promotion_id).first()
         if updated_promotion:
+
+            app_logger.debug(
+                f"  Name length: {len(promotion_data.name)} chars, {len(promotion_data.name.encode('utf-8'))} bytes")
+            app_logger.debug(
+                f"  Description length: {len(promotion_data.description)} chars, {len(promotion_data.description.encode('utf-8'))} bytes")
+
             updated_promotion.name = promotion_data.name
             updated_promotion.description = promotion_data.description
             updated_promotion.class_id = promotion_data.class_id
@@ -309,6 +315,101 @@ async def delete_promotion_item_segments(session, promotion_id=None):
     return deleted_promotion_item
 
 
+async def create_promotion_attributes(session: Session, promotion_id: int, attributes: list, user_id: str):
+    """
+    创建促销属性关联
+
+    Args:
+        session: 数据库会话
+        promotion_id: 促销ID
+        attributes: 属性列表，每个元素包含 attribute_code 和 attribute_value
+        user_id: 用户ID
+
+    Returns:
+        创建的属性关联对象
+    """
+    try:
+        for attr in attributes:
+
+            attr_value = attr.get('attribute_value')
+
+            if attr_value is None:
+                converted_value = ''
+            elif isinstance(attr_value, bool):
+                converted_value = 'true' if attr_value else 'false'
+            else:
+                converted_value = str(attr_value)
+
+            new_attribute = PromotionAttributes(
+                promotion_id=promotion_id,
+                attribute_code=attr.get('attribute_code'),
+                attribute_value=str(attr.get('attribute_value', '')),
+                create_time=datetime.now(),
+                create_user=user_id
+            )
+            session.add(new_attribute)
+        session.commit()
+        return True
+    except Exception as e:
+        app_logger.error(f"Error creating promotion attributes: {e}")
+        session.rollback()
+        raise e
+
+
+async def delete_promotion_attributes(session, promotion_id=None):
+    """
+    删除促销属性关联
+
+    Args:
+        session: 数据库会话
+        promotion_id: 促销ID
+    """
+    try:
+        query = session.query(PromotionAttributes)
+        if promotion_id is not None:
+            query = query.filter(PromotionAttributes.promotion_id == promotion_id)
+            deleted_attributes = query.all()
+            if deleted_attributes:
+                for attribute in deleted_attributes:
+                    session.delete(attribute)
+                session.commit()
+    except Exception as e:
+        app_logger.error(f"Error deleting promotion attributes: {e}")
+        session.rollback()
+
+
+async def get_promotion_attributes_by_id(session, promotion_id):
+    """
+    根据促销ID获取属性列表
+
+    Args:
+        session: 数据库会话
+        promotion_id: 促销ID
+
+    Returns:
+        属性列表
+    """
+    try:
+        attributes = session.query(PromotionAttributes).filter(
+            PromotionAttributes.promotion_id == promotion_id
+        ).all()
+
+        return [
+            {
+                'attribute_code': attr.attribute_code,
+                'attribute_value': attr.attribute_value,
+                'create_time': attr.create_time,
+                'create_user': attr.create_user,
+                'update_time': attr.update_time,
+                'update_user': attr.update_user
+            }
+            for attr in attributes
+        ]
+    except Exception as e:
+        app_logger.error(f"Error getting promotion attributes: {e}")
+        return []
+
+
 async def delete_promotion_import(session, promotion_id=None):
     query = session.query(PromotionImport)
     if promotion_id is not None:
@@ -439,7 +540,10 @@ async def get_promotion_list(session, key_word=None, promotion_status=None, org_
         query = query.filter(Promotion.promotion_status == promotion_status)
 
     if org_id:
-        query = query.filter(Promotion.org_id == org_id)
+        # query = query.filter(Promotion.org_id == org_id)
+        query = query.filter(
+            (Promotion.org_id == org_id) | (Promotion.org_id.is_(None))
+        )
 
     query = query.order_by(Promotion.create_time.desc())
     total = query.count()
@@ -937,6 +1041,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         promotion_condition_data = await get_promotion_condition_by_id(session, promotion_id)
         promotion_item_segments_data_all = await get_promotion_item_segments_by_id(session, promotion_id)
         promotion_cust_segments_data = await get_promotion_customer_segments_by_id(session, promotion_id)
+        promotion_attributes_data = await get_promotion_attributes_by_id(session, promotion_id)
 
         # 过滤掉 ALL ITEM
         promotion_item_segments_data = [
@@ -977,7 +1082,9 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         _build_deal_trig_data(data_containers, promotion_id, config['subclass_id'], config['set_ids'],
                               promotion_cust_segments_data, config['promotion_type'], config['coupon_code'],
                               config['promotion_status'])
-
+        if promotion_attributes_data:
+            _build_deal_trig_data_by_attribute(data_containers, promotion_id,config['subclass_id'], config['set_ids'],promotion_attributes_data,
+                                               )
         # 组装最终结果
         data_detail = _assemble_data_detail(data_containers, promotion_id, config['subclass_id'], config['set_ids'])
 
@@ -1288,6 +1395,24 @@ def _build_deal_loc_data(data_containers, promotion_id, subclass_id, set_ids, lo
         data_containers['PRC_DEAL_LOC'].append(deal_loc_template)
 
 
+def _build_deal_trig_data_by_attribute(data_containers, promotion_id, subclass_id, set_ids,
+                                       promotion_attribute_segments_data):
+    for attribute in promotion_attribute_segments_data:
+        deal_trig = {
+            **promotion_mapping["PRC_DEAL_TRIG"],
+            "deal_id": promotion_id,
+            "deal_trigger": f"{attribute['attribute_code']}:{attribute['attribute_value']}"
+        }
+
+        if subclass_id == '99':
+            for set_id_info in set_ids:
+                deal_trig_copy = deal_trig.copy()
+                deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+                data_containers['PRC_DEAL_TRIG'].append(deal_trig_copy)
+        else:
+            data_containers['PRC_DEAL_TRIG'].append(deal_trig)
+
+
 def _build_deal_trig_data(data_containers, promotion_id, subclass_id, set_ids,
                           promotion_cust_segments_data, promotion_type, coupon_code, promotion_status):
     """构建 DEAL_TRIG 和 COUPON_XREF 数据"""
@@ -1517,7 +1642,7 @@ async def get_promotion_dashboard(session: Session, org_id: str):
 						INNER JOIN 
 								promotions_result b 
 						ON 
-								a.promotion_id = b.promotion_id WHERE a.promotion_status='active' AND a.org_id=:org_id
+								a.promotion_id = b.promotion_id WHERE a.promotion_status='active' AND (a.org_id=:org_id OR a.org_id IS NULL)
         """)
 
     try:

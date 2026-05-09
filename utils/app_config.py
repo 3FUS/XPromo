@@ -68,6 +68,24 @@ class AppConfig:
         except Exception as e:
             app_logger.error(f"Failed to load organization config: {str(e)}")
 
+    def load_attributes_config(self):
+        """加载属性配置文件"""
+        try:
+            attributes_path = get_config_path('config_attributes.yaml')
+            if not attributes_path.exists():
+                app_logger.warning(f"Attributes config file not found: {attributes_path}")
+                self.attributes_config = {"attributes": []}
+                return
+
+            with open(attributes_path, 'r', encoding='utf-8') as file_config:
+                self.attributes_config = yaml.safe_load(file_config)
+
+            app_logger.info(
+                f"Loaded attributes config with {len(self.attributes_config.get('attributes', []))} attributes")
+        except Exception as e:
+            app_logger.error(f"Failed to load attributes config: {str(e)}")
+            self.attributes_config = {"attributes": []}
+
     def get_config(self):
         """获取配置字典"""
         return self.dict_config
@@ -75,6 +93,10 @@ class AppConfig:
     def get_org_config(self):
         """获取组织配置字典"""
         return self.org_config
+
+    def get_attributes_config(self):
+        """获取属性配置字典"""
+        return self.attributes_config
 
     def get_column_config(self, segment_type):
         """获取指定类型的列配置"""
@@ -115,3 +137,4 @@ def reload_config():
     """重新加载配置"""
     app_config.load_config()
     app_config.load_org_config()
+    app_config.load_attributes_config()

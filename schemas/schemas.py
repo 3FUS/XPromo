@@ -141,6 +141,9 @@ class PromotionResult(BaseModel):
     discount_value: Optional[Union[float, int]] = None
     is_active: Optional[int] = 1
 
+class PromotionAttribute(BaseModel):
+    attribute_code: str
+    attribute_value: Optional[Union[str, int, float, bool]] = Field(None)
 
 class PromotionSubmit(BaseModel):
     promotion: Promotions
@@ -150,6 +153,7 @@ class PromotionSubmit(BaseModel):
     promotion_location_segments: Optional[List[PromotionLocationSegments]] = None
     promotion_org_data: Optional[List[str]] = None
     promotion_customer_segments: Optional[List[PromotionCustomersSegments]]
+    promotion_attributes: Optional[List[PromotionAttribute]] = None
 
     @model_validator(mode='after')
     def check_location_or_org_data(self):

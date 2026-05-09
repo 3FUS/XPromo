@@ -93,8 +93,9 @@ def get_sftp_config(config_name: str = 'DEFAULT') -> Dict[str, Any]:
 
 
 def upload_sftp(local_path: str, filename: str,
+                config_params: dict,
                 config_name: str = 'DEFAULT',
-                remote_path: str = '') -> bool:
+                ) -> bool:
     """
     通过配置文件上传文件到 SFTP 服务器
 
@@ -114,17 +115,17 @@ def upload_sftp(local_path: str, filename: str,
             app_logger.error(f"未找到 {config_name} 的 SFTP 配置")
             return False
 
-        if not remote_path:
-            app_logger.warning(f"未指定远程路径，将使用配置中的 REMOTE_BASE_PATH")
-            remote_path = config.get('REMOTE_BASE_PATH', '')
+        # if not remote_path:
+        #     app_logger.warning(f"未指定远程路径，将使用配置中的 REMOTE_BASE_PATH")
+        #     remote_path = config.get('REMOTE_BASE_PATH', '')
 
-        sftp_remote = f"{remote_path}/{filename}" if remote_path else filename
+        sftp_remote = f"{config_params.get('REMOTE_BASE_PATH')}/{filename}"
         app_logger.info(f"上传文件到 SFTP: {local_path} -> {sftp_remote}")
         return upload_file_to_sftp(
             config.get('HOST', ''),
             config.get('PORT', 22),
-            config.get('USERNAME', ''),
-            config.get('PASSWORD', ''),
+            config_params.get('USERNAME', ''),
+            config_params.get('PASSWORD', ''),
             local_path,
             sftp_remote
         )

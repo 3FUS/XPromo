@@ -505,7 +505,10 @@ async def get_segments_item_list(session, key_word=None, segment_status=None, or
             base_query = base_query.filter(SegmentsItem.segment_status == segment_status)
 
         if org_id:
-            base_query = base_query.filter(SegmentsItem.org_id == org_id)
+            # base_query = base_query.filter(SegmentsItem.org_id == org_id)
+            base_query = base_query.filter(
+                (SegmentsItem.org_id == org_id) | (SegmentsItem.org_id.is_(None))
+            )
         # 排序
         base_query = base_query.order_by(SegmentsItem.create_time.desc())
 
@@ -560,8 +563,10 @@ async def get_segments_location_list(session, key_word=None, segment_status=None
         query = query.filter(SegmentsLocation.segment_status == segment_status)
 
     if org_id:
-        query = query.filter(SegmentsLocation.org_id == org_id)
-
+        # query = query.filter(SegmentsLocation.org_id == org_id)
+        query = query.filter(
+            (SegmentsLocation.org_id == org_id) | (SegmentsLocation.org_id.is_(None))
+        )
     query = query.order_by(SegmentsLocation.create_time.desc())
 
     total = query.count()
@@ -595,7 +600,10 @@ async def get_segments_customer_list(session, key_word=None, segment_status=None
         query = query.filter(SegmentsCustomer.segment_status == segment_status)
 
     if org_id:
-        query = query.filter(SegmentsCustomer.org_id == org_id)
+        # query = query.filter(SegmentsCustomer.org_id == org_id)
+        query = query.filter(
+            (SegmentsCustomer.org_id == org_id) | (SegmentsCustomer.org_id.is_(None))
+        )
 
     query = query.order_by(SegmentsCustomer.create_time.desc())
 
@@ -1018,7 +1026,7 @@ async def get_segment_item_dashboard(session: Session, segment_type=None, org_id
             LEFT JOIN 
                 promotions_item_segments b 
             ON 
-                a.segment_id = b.segment_id where a.org_id=:org_id
+                a.segment_id = b.segment_id where (a.org_id=:org_id OR a.org_id IS NULL)
         """)
     elif segment_type == Segment_Type.customer:
         sql = text("""
@@ -1031,7 +1039,7 @@ async def get_segment_item_dashboard(session: Session, segment_type=None, org_id
             LEFT JOIN 
                 promotions_customer_segments b 
                             ON 
-                a.segment_id = b.segment_id where a.org_id=:org_id"""
+                a.segment_id = b.segment_id where (a.org_id=:org_id OR a.org_id IS NULL)"""
                    )
     elif segment_type == Segment_Type.location:
         sql = text("""
@@ -1044,7 +1052,7 @@ async def get_segment_item_dashboard(session: Session, segment_type=None, org_id
             LEFT JOIN 
             promotions_location_segments b 
             ON 
-                a.segment_id = b.segment_id where a.org_id=:org_id"""
+                a.segment_id = b.segment_id where (a.org_id=:org_id OR a.org_id IS NULL)"""
                    )
     try:
         result = session.execute(sql, {"org_id": org_id})

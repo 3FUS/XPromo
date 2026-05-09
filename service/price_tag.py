@@ -144,6 +144,8 @@ def get_regular_price_tag(db, org_id):
         price_tags = []
         for row in rows:
             price_tag = {
+                'promotion_id':1,
+                'org_id':org_id,
                 'material': row[0],
                 'grid': row[1],
                 'SKU': row[2],
@@ -159,7 +161,7 @@ def get_regular_price_tag(db, org_id):
         app_logger.error(f"Error executing get_regular_price_tag query: {str(e)}")
         raise e
 
-def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
+def generate_and_upload_price_tags(db, org_id, config_params):
     """
     生成价格标签 Excel 文件并上传到 SFTP
 
@@ -180,9 +182,12 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
         output_dir = app_config.PT_PATH
         os.makedirs(output_dir, exist_ok=True)
 
+        REMOTE_BASE_PATH = config_params.get('REMOTE_BASE_PATH')
+        CURRENCY = config_params.get('CURRENCY')
+        PREFIX=config_params.get('PREFIX')
         # 生成带时间戳的文件名
         timestamp = datetime.now().strftime('%Y%m%d')
-        filename = f'{REMOTE_BASE_PATH}_Price_{timestamp}.xlsx'
+        filename = f'{PREFIX}_Price_{timestamp}.xlsx'
         output_path = os.path.join(output_dir, filename)
 
 
@@ -303,7 +308,7 @@ def generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY):
         # 上传到 SFTP
         uploaded = False
         try:
-            uploaded = upload_sftp(output_path, filename, 'DEFAULT', REMOTE_BASE_PATH)
+            uploaded = upload_sftp(output_path, filename, config_params,'DEFAULT', )
             app_logger.info(f"File {'successfully' if uploaded else 'failed to'} upload to SFTP")
         except Exception as upload_error:
             app_logger.error(f"SFTP upload failed: {str(upload_error)}")
@@ -341,6 +346,11 @@ def generate_and_upload_price_tags_for_all_orgs(db):
                 'results': []
             }
 
+        sftp_default = app_config.get_sftp_config('DEFAULT')
+        default_path=sftp_default.get('REMOTE_BASE_PATH')
+        default_user = sftp_default.get('USERNAME')
+        default_password = sftp_default.get('PASSWORD')
+
         app_logger.info(f"Found {len(sftp_config)} organizations in TAG configuration")
 
         results = []
@@ -351,8 +361,14 @@ def generate_and_upload_price_tags_for_all_orgs(db):
         # 循环处理每个组织
         for org_config in sftp_config:
             org_id = org_config.get('ORG_ID')
-            REMOTE_BASE_PATH = org_config.get('REMOTE_BASE_PATH')
-            CURRENCY=org_config.get('CURRENCY')
+
+            config_params = {
+                'REMOTE_BASE_PATH': org_config.get('REMOTE_BASE_PATH', default_path),
+                'PREFIX': org_config.get('PREFIX'),
+                'USERNAME': org_config.get('USERNAME', default_user),
+                'PASSWORD': org_config.get('PASSWORD', default_password),
+                'CURRENCY': org_config.get('CURRENCY')
+            }
 
             if not org_id:
                 app_logger.warning("Organization ID not found in TAG config, skipping")
@@ -361,7 +377,7 @@ def generate_and_upload_price_tags_for_all_orgs(db):
             app_logger.info(f"Processing price tags for organization: {org_id}")
 
             try:
-                result = generate_and_upload_price_tags(db, org_id, REMOTE_BASE_PATH,CURRENCY)
+                result = generate_and_upload_price_tags(db, org_id, config_params)
                 results.append(result)
 
                 if result.get('success'):

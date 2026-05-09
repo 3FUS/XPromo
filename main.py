@@ -37,7 +37,9 @@ from service.promotion import create_promotion, create_promotion_condition, crea
     update_promotion_status, get_promotion_location_detail_by_id, \
     update_promotion_export_time, delete_promotion, create_promotion_org_data, get_promotion_org_join_by_id, \
     get_promotion_location_detail_by_id_v2, process_promotion_data, delete_promotion_condition, delete_promotion_result, \
-    delete_promotion_import, get_promotion_import_by_id, get_location_detail_by_promotionId, get_promotion_export_status
+    delete_promotion_import, get_promotion_import_by_id, get_location_detail_by_promotionId, \
+    get_promotion_export_status, delete_promotion_attributes, create_promotion_attributes, \
+    get_promotion_attributes_by_id
 
 from service.worker import create_worker_task, create_termination_task
 from service.access_service import verify_password, get_sys_user_configuration
@@ -601,6 +603,39 @@ async def read_promotion_group(user_id=Depends(get_current_user)):
     return {'code': 200, 'promotion_group': p_group}
 
 
+
+
+@app.get("/promotion_api/promotion/attributes")
+async def get_config_attributes(
+        lang: str = Query("en", description="Language preference: 'en' for English, 'zh' for Chinese"),
+        user_id=Depends(get_current_user)
+):
+    """
+    获取属性配置信息
+
+    Args:
+        lang (str): 语言偏好
+        user_id: 当前用户ID
+
+    Returns:
+        dict: 属性配置列表
+    """
+    try:
+        attributes = app_config.get_attributes_config().get('attributes', [])
+
+        return {
+            'code': 200,
+            'attributes': attributes,
+            'total_count': len(attributes)
+        }
+
+    except Exception as e:
+        app_logger.error(f"Error reading attributes config: {str(e)}")
+        return {'code': 301, 'msg': f'Error reading attributes configuration: {str(e)}'}
+
+
+
+
 @app.post("/promotion_api/promotion/submit")
 async def submit_promotion(
         promotionsubmit: PromotionSubmit,
@@ -624,6 +659,7 @@ async def submit_promotion(
             await delete_promotion_item_segments(session, promotion_id)
             await delete_promotion_location_segments(session, promotion_id)
             await delete_promotion_customer_segments(session, promotion_id)
+            await delete_promotion_attributes(session, promotion_id)
         else:
             new_promotion = await create_promotion(session, promotionsubmit.promotion, user_id, org_id)
             promotion_id = new_promotion.promotion_id
@@ -648,6 +684,11 @@ async def submit_promotion(
         if promotionsubmit.promotion_org_data:
             await create_promotion_org_data(session, promotion_id,
                                             promotionsubmit.promotion_org_data)
+
+        if promotionsubmit.promotion_attributes:
+            await create_promotion_attributes(session, promotion_id,
+                                              [attr.model_dump() for attr in promotionsubmit.promotion_attributes],
+                                              user_id)
 
         return {'code': 200, "promotion_id": promotion_id, "msg": get_message("promotion_submitted", lang)}
     except Exception as e:
@@ -711,14 +752,15 @@ async def read_promotion(
         session=Depends(get_db), user_id=Depends(get_current_user)
 ):
     try:
-        promotion_header, promotion_condition, promotion_result, promotion_item_segments, promotion_location_segments, promotion_customer_segments, promotion_import = await asyncio.gather(
+        promotion_header, promotion_condition, promotion_result, promotion_item_segments, promotion_location_segments, promotion_customer_segments, promotion_import,promotion_attributes = await asyncio.gather(
             get_promotion_by_id(session, promotion_id),
             get_promotion_condition_by_id(session, promotion_id),
             get_promotion_result_by_id(session, promotion_id),
             get_promotion_item_segments_by_id(session, promotion_id),
             get_promotion_location_segments_by_id(session, promotion_id),
             get_promotion_customer_segments_by_id(session, promotion_id),
-            get_promotion_import_by_id(session, promotion_id)
+            get_promotion_import_by_id(session, promotion_id),
+            get_promotion_attributes_by_id(session, promotion_id)
         )
         promotion_org_join = await get_promotion_org_join_by_id(session, promotion_id)
         locs_data = await get_location_detail_by_promotionId(promotion_id, session)
@@ -737,7 +779,8 @@ async def read_promotion(
         'promotion_location_segments': promotion_location_segments,
         'location_count': 0 if df_locs is None else len(df_locs),
         'promotion_org_data': promotion_org_join,
-        'promotion_import': promotion_import
+        'promotion_import': promotion_import,
+        'promotion_attributes': promotion_attributes
     }
 
 
@@ -1083,4 +1126,3 @@ if __name__ == '__main__':
 
     port = app_config.dict_config.get('SERVER_PORT', 8000)
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

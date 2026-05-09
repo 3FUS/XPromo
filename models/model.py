@@ -149,11 +149,25 @@ class PromotionOrgJoin(Base):
         Index('idx_promotion_org_join_org_code_value', 'org_code', 'org_value'),
     )
 
+class PromotionAttributes(Base):
+    __tablename__ = 'promotions_attributes'
+    promotion_id = Column(Integer, primary_key=True)
+    attribute_code = Column(String(60), primary_key=True)
+    attribute_value = Column(String(255))
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
+    __table_args__ = (
+        Index('idx_promotion_attributes_promotion_id', 'promotion_id'),
+        Index('idx_promotion_attributes_attribute_code', 'attribute_code'),
+    )
 
 class PromotionImport(Base):
     __tablename__ = 'promotions_import'
     promotion_id = Column(Integer, primary_key=True)
-    file_name = Column(NVARCHAR(180))
+    file_name = Column(String(180))
     count_success = Column(Integer)
     count_fail = Column(Integer)
     create_time = Column(DATETIME)
@@ -275,9 +289,9 @@ class SegmentsItemDetail(Base):
     __tablename__ = 'segments_item_detail'
     segment_id = Column(Integer, primary_key=True)
     item_id = Column(String(60), primary_key=True)
-    item_name = Column(NVARCHAR(255))
+    item_name = Column(String(255))
     sku = Column(String())
-    item_description = Column(NVARCHAR(255))
+    item_description = Column(String(255))
     item_department = Column(String(30))
     item_class = Column(String(30))
     item_sub_class = Column(String(30))
