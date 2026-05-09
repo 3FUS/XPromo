@@ -49,33 +49,19 @@ jobs:
       - name: Download NSSM
         run: |
           # 下载 NSSM 到项目目录
-          $outputPath = "nssm.zip"
-          $success = $false
+          choco install nssm -y
           
-          # 下载源列表
-          $sources = @(
-            "https://github.com/bdehamer/nssm/releases/download/v2.24/nssm-2.24.zip",
-            "https://github.com/mbrownnyc/nssm/releases/download/v2.24/nssm-2.24.zip",
-            "https://github.com/jemmyangel/nssm/releases/download/v2.24/nssm-2.24.zip",
-            "https://github.com/erniebrodeur/nssm/releases/download/v2.24/nssm-2.24.zip"
-          )
+          # 从 Chocolatey 安装目录复制 nssm.exe 到当前目录
+          Copy-Item "C:\ProgramData\chocolatey\bin\nssm.exe" -Destination .
           
-          foreach ($source in $sources) {
-            try {
-              Write-Host "Attempting to download from: $source"
-              Invoke-WebRequest -Uri $source -OutFile $outputPath
-              Write-Host "Successfully downloaded NSSM from: $source"
-              $success = $true
-              break
-            } catch {
-              Write-Host "Failed to download from: $source - $($_.Exception.Message)"
-              continue
-            }
+          # 验证文件是否存在
+          if (Test-Path "nssm.exe") {
+            Write-Host "NSSM executable installed successfully via Chocolatey"
+            Get-Item "nssm.exe" | Select-Object Name, Length
+          } else {
+            Write-Error "NSSM executable not found after Chocolatey installation"
+            exit 1
           }
-          
-          # 解压并复制 nssm.exe
-          Expand-Archive -Path $outputPath -DestinationPath .
-          Copy-Item "nssm-2.24/win64/nssm.exe" -Destination .
 
       - name: Build EXE with PyInstaller
         run: |
