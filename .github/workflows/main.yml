@@ -46,22 +46,22 @@ jobs:
           choco install nsis -y
           refreshenv
 
-      - name: Download NSSM
-        run: |
-          # 下载 NSSM 到项目目录
-          choco install nssm -y
-          
-          # 从 Chocolatey 安装目录复制 nssm.exe 到当前目录
-          Copy-Item "C:\ProgramData\chocolatey\bin\nssm.exe" -Destination .
-          
-          # 验证文件是否存在
-          if (Test-Path "nssm.exe") {
-            Write-Host "NSSM executable installed successfully via Chocolatey"
-            Get-Item "nssm.exe" | Select-Object Name, Length
-          } else {
-            Write-Error "NSSM executable not found after Chocolatey installation"
-            exit 1
-          }
+#      - name: Download NSSM
+#        run: |
+#          # 下载 NSSM 到项目目录
+#          choco install nssm -y
+#
+#          # 从 Chocolatey 安装目录复制 nssm.exe 到当前目录
+#          Copy-Item "C:\ProgramData\chocolatey\bin\nssm.exe" -Destination .
+#
+#          # 验证文件是否存在
+#          if (Test-Path "nssm.exe") {
+#            Write-Host "NSSM executable installed successfully via Chocolatey"
+#            Get-Item "nssm.exe" | Select-Object Name, Length
+#          } else {
+#            Write-Error "NSSM executable not found after Chocolatey installation"
+#            exit 1
+#          }
 
       - name: Build EXE with PyInstaller
         run: |
@@ -81,8 +81,10 @@ jobs:
           copy config\*.yaml dist\config_templates\
           copy config\*.py dist\config_templates\
           
+          
           # 复制 NSSM 到安装包目录
-          copy nssm.exe dist\
+          copy config\nssm.exe dist\
+#          copy nssm.exe dist\
 
       - name: Debug information
         run: |    
