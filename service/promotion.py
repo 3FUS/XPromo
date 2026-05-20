@@ -1398,6 +1398,10 @@ def _build_deal_loc_data(data_containers, promotion_id, subclass_id, set_ids, lo
 def _build_deal_trig_data_by_attribute(data_containers, promotion_id, subclass_id, set_ids,
                                        promotion_attribute_segments_data):
     for attribute in promotion_attribute_segments_data:
+
+        if not attribute.get('attribute_value'):
+            continue
+
         deal_trig = {
             **promotion_mapping["PRC_DEAL_TRIG"],
             "deal_id": promotion_id,
