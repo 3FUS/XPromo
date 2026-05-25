@@ -4,7 +4,7 @@ from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.triggers.cron import CronTrigger
 from utils.segment_etl import run_segment_cleaning
 from utils.logger import app_logger
-from service.price_tag import  generate_and_upload_price_tags_for_all_orgs
+from service.price_tag import  generate_and_upload_price_tags
 from typing import Optional
 from service import get_db
 from utils.app_config import app_config
@@ -81,20 +81,48 @@ class SchedulerManager:
                         CronTrigger(hour=hour, minute=minute),
                         id=job_id,
                         replace_existing=True,
-                        name=job_name
+                        name=job_name,
+                        kwargs={'org_id': org_id}
                     )
                     app_logger.info(f"Price tag generation job scheduled: {job_name} (ID: {job_id})")
 
             for job in self.scheduler.get_jobs():
                 app_logger.info(f"Scheduled job: {job.id}, next run: {job.next_run_time}")
 
-    async def _run_price_tag_generation(self):
+    async def _run_price_tag_generation(self, org_id: str):
         """执行价格标签生成任务"""
         try:
             app_logger.info("Starting price tag generation job...")
             db = next(get_db())
-            # result = generate_and_upload_price_tags(db)
-            result = generate_and_upload_price_tags_for_all_orgs(db)
+
+            # result = generate_and_upload_price_tags_for_all_orgs(db)
+
+            tag_configs = app_config.dict_config.get('SFTP_CONFIG', {}).get('TAG', [])
+            org_config = None
+            for config in tag_configs:
+                if config.get('ORG_ID') == org_id:
+                    org_config = config
+                    break
+
+            if not org_config:
+                app_logger.error(f"No configuration found for org_id: {org_id}")
+                return
+
+            # 获取默认配置
+            sftp_default = app_config.get_sftp_config('DEFAULT')
+            default_path = sftp_default.get('REMOTE_BASE_PATH')
+            default_user = sftp_default.get('USERNAME')
+            default_password = sftp_default.get('PASSWORD')
+
+            config_params = {
+                'REMOTE_BASE_PATH': org_config.get('REMOTE_BASE_PATH', default_path),
+                'PREFIX': org_config.get('PREFIX'),
+                'USERNAME': org_config.get('USERNAME', default_user),
+                'PASSWORD': org_config.get('PASSWORD', default_password),
+                'CURRENCY': org_config.get('CURRENCY')
+            }
+
+            result = generate_and_upload_price_tags(db, org_id, config_params)
 
             if result['success']:
                 app_logger.info(f"Price tag generation completed: {result.get('message')}")
