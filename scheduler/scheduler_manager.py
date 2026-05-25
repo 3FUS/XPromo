@@ -7,6 +7,7 @@ from utils.logger import app_logger
 from service.price_tag import  generate_and_upload_price_tags_for_all_orgs
 from typing import Optional
 from service import get_db
+from utils.app_config import app_config
 
 class SchedulerManager:
     def __init__(self):
@@ -44,14 +45,45 @@ class SchedulerManager:
                 replace_existing=True
             )
 
-            self.scheduler.add_job(
-                self._run_price_tag_generation,
-                CronTrigger(hour=23, minute=58),
-                id='price_tag_generation_job',
-                replace_existing=True,
-                name='Daily price tag generation at xx:xx'
-            )
-            app_logger.info("Price tag generation job scheduled for 11:40 daily.")
+            # self.scheduler.add_job(
+            #     self._run_price_tag_generation,
+            #     CronTrigger(hour=8, minute=33),
+            #     id='price_tag_generation_job',
+            #     replace_existing=True,
+            #     name='Daily price tag generation at xx:xx'
+            # )
+            # app_logger.info("Price tag generation job scheduled for 11:40 daily.")
+
+            tag_configs = app_config.dict_config.get('SFTP_CONFIG', {}).get('TAG', [])
+
+            if not tag_configs:
+                app_logger.warning("No TAG configuration found in SFTP_CONFIG")
+            else:
+                for idx, org_config in enumerate(tag_configs):
+                    org_id = org_config.get('ORG_ID')
+                    tag_schedule = org_config.get('TAG_SCHEDULE', '23:59')
+
+                    if not org_id:
+                        app_logger.warning(f"Organization {idx + 1} missing ORG_ID, skipping")
+                        continue
+
+                    try:
+                        hour, minute = map(int, tag_schedule.split(':'))
+                    except (ValueError, AttributeError) as e:
+                        app_logger.error(f"Invalid TAG_SCHEDULE format '{tag_schedule}' for org {org_id}: {e}")
+                        hour, minute = 23, 59
+
+                    job_id = f'price_tag_generation_job_org_{org_id}'
+                    job_name = f'Price tag generation for org {org_id} at {hour:02d}:{minute:02d}'
+
+                    self.scheduler.add_job(
+                        self._run_price_tag_generation,
+                        CronTrigger(hour=hour, minute=minute),
+                        id=job_id,
+                        replace_existing=True,
+                        name=job_name
+                    )
+                    app_logger.info(f"Price tag generation job scheduled: {job_name} (ID: {job_id})")
 
             for job in self.scheduler.get_jobs():
                 app_logger.info(f"Scheduled job: {job.id}, next run: {job.next_run_time}")
