@@ -72,47 +72,9 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
             upload_data = pd.DataFrame()
 
         segment_type = submit_data.get("segment_type")
-
+        app_logger.debug(f"Upload Data : {upload_data}")
         upload_data = await validate_and_enrich_upload_data(upload_data, segment_type, org_id)
-
-        # item_data = load_item_data_from_db(segment_type, org_id)
-        #
-        # # Check for missing item_ids and complete missing fields
-        # if not upload_data.empty and segment_type == 'item':
-        #     # Add a new column to mark errors
-        #     if 'item_id' in upload_data.columns:
-        #         key_column = 'item_id'
-        #     elif 'sku' in upload_data.columns:
-        #         key_column = 'sku'
-        #
-        #     item_data_filtered = item_data[['item_id', 'name', 'sku', 'description', 'merch_level_1']].rename(
-        #         columns={
-        #             'name': 'item_name',
-        #             'description': 'item_description',
-        #             'merch_level_1': 'item_department'
-        #         }
-        #     )
-        #
-        #     upload_data = upload_data.drop_duplicates(subset=key_column, keep='first')
-        #     upload_data = upload_data.merge(item_data_filtered, on=key_column, how='left')
-        #
-        #     upload_data['error_flag'] = 0
-        #     upload_data['error_flag'] = upload_data['error_flag'].astype('Int64')
-        #     upload_data[key_column] = upload_data[key_column].astype(str)
-        #     missing_items = ~upload_data[key_column].isin(item_data[key_column].astype(str))
-        #     upload_data.loc[missing_items, 'error_flag'] = 1
-        # elif not upload_data.empty and segment_type == 'location':
-        #     loc_data_filtered = item_data[['rtl_loc_id', 'store_name', 'location_type', 'city']]
-        #
-        #     upload_data = upload_data.drop_duplicates(subset='rtl_loc_id', keep='first')
-        #     upload_data['rtl_loc_id'] = upload_data['rtl_loc_id'].astype('Int64')
-        #     upload_data = upload_data.merge(loc_data_filtered, on='rtl_loc_id', how='left')
-        #
-        #     upload_data['error_flag'] = 0
-        #     upload_data['error_flag'] = upload_data['error_flag'].astype('Int64')
-        #     missing_items = ~upload_data['rtl_loc_id'].isin(loc_data_filtered['rtl_loc_id'])
-        #     upload_data.loc[missing_items, 'error_flag'] = 1
-
+        app_logger.debug(f"Validated upload data: {upload_data}")
         segment_id = submit_data["segment"].get("segment_id", None)
         name = submit_data["segment"].get("name")
         description = submit_data["segment"].get("description")

@@ -28,7 +28,16 @@ def get_new_price_tag(db, org_id):
         INNER JOIN segments_item_detail c on b.segment_id=c.segment_id
         INNER JOIN promotions_result d on a.promotion_id=d.promotion_id and b.set_id=d.set_id
         INNER JOIN ITM_ITEM_OPTIONS e on e.ITEM_ID=c.item_id
-        INNER JOIN ITM_ITEM_CROSS_REFERENCE f on e.ORGANIZATION_ID=f.ORGANIZATION_ID and e.ITEM_ID=f.ITEM_ID
+        INNER JOIN (
+            SELECT 
+                ORGANIZATION_ID,
+                ITEM_ID,
+                MANUFACTURER_UPC,
+                ROW_NUMBER() OVER (PARTITION BY ORGANIZATION_ID, ITEM_ID ORDER BY update_date DESC) as rn
+            FROM ITM_ITEM_CROSS_REFERENCE
+        ) f on e.ORGANIZATION_ID=f.ORGANIZATION_ID 
+            and e.ITEM_ID=f.ITEM_ID 
+            and f.rn = 1
         where 
         a.promotion_status='active' and price_tag=1 and 
         d.discount_type='NEW_PRICE' and a.org_id=:org_id
@@ -75,13 +84,24 @@ def get_percent_off_price_tag(db, org_id):
         c.item_id as EAN,
         (1-d.discount_value/100)*g.price as price,
         a.start_date,
-        a.end_date
+        a.end_date,
+        g.effective_date,
+        g.expiration_date
         from promotions a 
         INNER JOIN promotions_item_segments b on a.promotion_id=b.promotion_id
         INNER JOIN segments_item_detail c on b.segment_id=c.segment_id
         INNER JOIN promotions_result d on a.promotion_id=d.promotion_id and b.set_id=d.set_id
         INNER JOIN ITM_ITEM_OPTIONS e on e.ITEM_ID=c.item_id
-        INNER JOIN ITM_ITEM_CROSS_REFERENCE f on e.ORGANIZATION_ID=f.ORGANIZATION_ID and e.ITEM_ID=f.ITEM_ID
+        INNER JOIN (
+            SELECT 
+                ORGANIZATION_ID,
+                ITEM_ID,
+                MANUFACTURER_UPC,
+                ROW_NUMBER() OVER (PARTITION BY ORGANIZATION_ID, ITEM_ID ORDER BY update_date DESC) as rn
+            FROM ITM_ITEM_CROSS_REFERENCE
+        ) f on e.ORGANIZATION_ID=f.ORGANIZATION_ID 
+            and e.ITEM_ID=f.ITEM_ID 
+            and f.rn = 1
         INNER JOIN itm_item_prices g on e.ORGANIZATION_ID=g.organization_id  and g.ITEM_ID=f.ITEM_ID and g.itm_price_property_code='REGULAR_PRICE' and a.org_id=g.level_value
         and (a.start_date BETWEEN g.effective_date and expiration_date or a.end_date BETWEEN g.effective_date and expiration_date )
         where 
@@ -105,7 +125,9 @@ def get_percent_off_price_tag(db, org_id):
                 'EAN': row[5],
                 'PRICE': row[6],
                 'start_date': row[7],
-                'end_date': row[8]
+                'end_date': row[8],
+                'effective_date': row[9],
+                'expiration_date': row[10]
             }
             price_tags.append(price_tag)
 
@@ -129,12 +151,21 @@ def get_regular_price_tag(db, org_id):
         g.effective_date,
         g.expiration_date
         from itm_item_prices g 
-        INNER JOIN
-        ITM_ITEM_CROSS_REFERENCE f on g.organization_id=f.ORGANIZATION_ID and g.ITEM_ID=f.ITEM_ID
+        INNER JOIN (
+            SELECT 
+                ORGANIZATION_ID,
+                ITEM_ID,
+                MANUFACTURER_UPC,
+                ROW_NUMBER() OVER (PARTITION BY ORGANIZATION_ID, ITEM_ID ORDER BY update_date DESC) as rn
+            FROM ITM_ITEM_CROSS_REFERENCE
+        ) f on g.organization_id=f.ORGANIZATION_ID 
+            and g.ITEM_ID=f.ITEM_ID 
+            and f.rn = 1
         INNER JOIN 
         ITM_ITEM_OPTIONS e on g.organization_id=e.ORGANIZATION_ID and g.ITEM_ID=e.ITEM_ID
         where g.level_value=:org_id and itm_price_property_code='REGULAR_PRICE'
     """)
+
 
     try:
         result = db.execute(query, {"org_id": str(org_id)})
@@ -160,6 +191,51 @@ def get_regular_price_tag(db, org_id):
     except Exception as e:
         app_logger.error(f"Error executing get_regular_price_tag query: {str(e)}")
         raise e
+
+
+def deduplicate_by_effective_date(df, has_effective_date=False):
+    """
+    根据promotion_id和SKU去重，选择最合适的PRICE
+
+    Args:
+        df: 待去重的DataFrame
+        has_effective_date: 是否包含effective_date字段
+
+    Returns:
+        去重后的DataFrame
+    """
+    if len(df) == 0:
+        return df
+
+    current_time = pd.Timestamp.now()
+
+    def select_best_price(group):
+        if len(group) == 1:
+            return group.iloc[0]
+
+        if has_effective_date and 'effective_date' in group.columns:
+            valid_records = group[
+                (group['effective_date'] <= group['start_date']) |
+                (group['effective_date'] <= current_time)
+                ]
+
+            if not valid_records.empty:
+                best_idx = valid_records['effective_date'].idxmax()
+                return group.loc[best_idx]
+
+            best_idx = group['effective_date'].idxmax()
+            return group.loc[best_idx]
+        else:
+            return group.iloc[0]
+
+    deduplicated_df = df.groupby(['promotion_id', 'SKU'], group_keys=False).apply(select_best_price).reset_index(
+        drop=True)
+
+    if has_effective_date:
+        app_logger.info(f"After deduplication by effective_date, records: {len(deduplicated_df)} (original: {len(df)})")
+
+    return deduplicated_df
+
 
 def generate_and_upload_price_tags(db, org_id, config_params):
     """
@@ -206,6 +282,7 @@ def generate_and_upload_price_tags(db, org_id, config_params):
         if not df_percent.empty:
             df_percent['PRICE TYPE'] = 'P1'
             df_percent['REMARKS'] = 'Discount item'
+            df_percent = deduplicate_by_effective_date(df_percent, has_effective_date=True)
 
         df_regular = pd.DataFrame(regular_price_tags)
         if not df_regular.empty:

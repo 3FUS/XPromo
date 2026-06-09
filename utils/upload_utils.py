@@ -143,6 +143,7 @@ async def validate_and_enrich_upload_data(upload_data: pd.DataFrame, segment_typ
         # 左连接补充字段
         upload_data = upload_data.merge(db_data_filtered, on=key_column, how='left')
 
+        upload_data = upload_data.drop_duplicates(subset=key_column, keep='first')
         # 初始化错误标记
         upload_data['error_flag'] = 0
         upload_data['error_flag'] = upload_data['error_flag'].astype('Int64')
