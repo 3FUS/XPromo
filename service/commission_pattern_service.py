@@ -259,7 +259,7 @@ async def get_commission_pattern_by_business_keys(
         session: Session,
         location_id: int,
         brand_code: int,
-        category_code: int,
+        category_code: str,
         start_date: datetime
 ) -> Optional[CommissionPattern]:
     """
@@ -281,7 +281,7 @@ async def get_commission_pattern_by_business_keys(
 
 async def get_commission_pattern_category_list(
         session: Session,
-        status: Optional[str] = None,
+        status: Optional[str] = 'active',
         page: int = 1,
         page_size: int = 30
 ) -> Dict[str, Any]:
@@ -314,7 +314,7 @@ async def get_commission_pattern_category_list(
 
 async def get_commission_pattern_category_by_code(
         session: Session,
-        category_code: int
+        category_code: str
 ) -> Optional[CommissionPatternCategory]:
     """
     根据分类代码获取分类详情
@@ -366,7 +366,7 @@ async def create_commission_pattern_category(
 
 async def delete_or_deactivate_commission_pattern_category(
         session: Session,
-        category_code: int,
+        category_code: str,
         update_user: str = "system"
 ) -> Dict[str, Any]:
     """
@@ -418,7 +418,7 @@ async def delete_or_deactivate_commission_pattern_category(
 
 async def get_commission_pattern_brand_list(
         session: Session,
-        status: Optional[str] = None,
+        status: Optional[str] = 'active',
         page: int = 1,
         page_size: int = 30
 ) -> Dict[str, Any]:
@@ -451,7 +451,7 @@ async def get_commission_pattern_brand_list(
 
 async def get_commission_pattern_brand_by_code(
         session: Session,
-        brand_code: int
+        brand_code: str
 ) -> Optional[CommissionPatternBrand]:
     """
     根据品牌代码获取品牌详情

@@ -189,7 +189,7 @@ async def delete_existing_commission_pattern(
 
 @router.get("/category/list")
 async def list_commission_pattern_categories(
-        status: Optional[str] = Query(None, description="状态筛选"),
+        status: Optional[str] = Query('active', description="状态筛选"),
         page: int = Query(1, ge=1, description="页码"),
         page_size: int = Query(30, ge=1, le=1000, description="每页数量"),
         session=Depends(get_db),
@@ -227,7 +227,7 @@ async def create_new_commission_pattern_category(
 
 @router.delete("/category/{category_code}")
 async def delete_commission_pattern_category_route(
-        category_code: int,
+        category_code: str,
         session=Depends(get_db),
         user_id=Depends(get_current_user)
 ):
