@@ -606,9 +606,15 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
                    "description": result_data.get('category_name')}]})
 
     data_detail.append(
-        {'table': 'COM_TRANSLATIONS', 'table_key': ['organization_id', 'locale', 'translation_key'],
-         "action": "INSERT_AND_UPDATE",
-         "data": [{**commission_mapping["COM_TRANSLATIONS"], "translation_key": result_data.get('category_code'),
-                   "translation": result_data.get('category_name')}]})
+        {'table': 'COM_TRANS_PROMPT_PROPERTIES', 'table_key': ['organization_id', 'trans_prompt_property_code'],
+         "action": action,
+         "data": [{**commission_mapping["COM_TRANS_PROMPT_PROPERTIES"],
+                   "trans_prompt_property_code": "SAM_COMMISSIONPATTERN"}]})
+
+    # data_detail.append(
+    #     {'table': 'COM_TRANSLATIONS', 'table_key': ['organization_id', 'locale', 'translation_key'],
+    #      "action": "INSERT_AND_UPDATE",
+    #      "data": [{**commission_mapping["COM_TRANSLATIONS"], "translation_key": result_data.get('category_code'),
+    #                "translation": result_data.get('category_name')}]})
 
     return data_detail

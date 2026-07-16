@@ -205,6 +205,8 @@ try:
     Base.metadata.create_all(engine)
     from models.sam_competitor import Base as CustomBase
     CustomBase.metadata.create_all(engine)
+    from models.sam_commissionpattern import Base as CommissionPatternBase
+    CommissionPatternBase.metadata.create_all(engine)
     app_logger.info("Database tables created/verified successfully.")
     init_default_data()
 except Exception as e:
