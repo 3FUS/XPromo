@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, Request
 from service.promotion import process_promotion_data, process_promotion_termination
-from service.segments_service import  get_segments_by_phone, process_segment_data
+from service.segments_service import get_segments_by_phone, process_segment_data
+from service.commission_pattern_service import process_commission_pattern_data
 from worker_api.worker_schemas import WorkerCallBack
 from service.worker import get_worker_next_task, update_worker_task, process_data_dispatch_data
 from service import get_db
@@ -77,7 +78,7 @@ async def verify_header_signature(request: Request):
         app_logger.error("Header signature verification failed")
         raise HTTPException(status_code=400, detail="signature verification failed")
 
-# dependencies=[Depends(verify_header_signature)]
+
 @router.get("/worker_api/get_promotion_by_phone")
 async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
     try:
@@ -93,6 +94,7 @@ async def get_promotion_by_phone(phone_number: str, session=Depends(get_db)):
             "code": 500,
             "msg": str(e)
         }
+
 
 # , dependencies=[Depends(verify_header_signature)]
 @router.get("/worker_api/get_data")
@@ -133,6 +135,8 @@ async def get_task_data(location_id: int, terminal_id: int, session=Depends(get_
             data_detail = await process_segment_data(data_key, session)
         elif data_type == 'data_dispatch':
             data_detail = await process_data_dispatch_data(data_key, session)
+        elif data_type == 'commission_pattern':
+            data_detail = await process_commission_pattern_data(data_key, session, location_id)
         else:
             return {"code": 301, "msg": "data_type is not support"}
 
