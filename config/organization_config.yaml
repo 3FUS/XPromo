@@ -7,7 +7,7 @@ organizations:
     country_code: "SG"
     currency: "SGD"
     timezone: "Asia/Singapore"
-    active: false
+    active: true
 
   - org_id: "5050"
     org_name: "Malaysia Samsonite"
@@ -49,6 +49,56 @@ organizations:
     timezone: "Asia/Macau"
     active: true
 
+  - org_id: "5640_10"
+    org_name: "Thailand Samsonite COS"
+    org_name_zh: "泰国Samsonite COS"
+    org_name_zh_tw: "泰國Samsonite COS"
+    org_name_jp: "タイSamsonite COS"
+    country_code: "TH"
+    currency: "THB"
+    timezone: "Asia/Bangkok"
+    active: true
+    
+  - org_id: "5640_19"
+    org_name: "Thailand Samsonite SIS"
+    org_name_zh: "泰国Samsonite SIS"
+    org_name_zh_tw: "泰國Samsonite SIS"
+    org_name_jp: "タイSamsonite SIS"
+    country_code: "TH"
+    currency: "THB"
+    timezone: "Asia/Bangkok"
+    active: true
+   
+  - org_id: "5680"
+    org_name: "Indonesia Samsonite"
+    org_name_zh: "印度尼西亚Samsonite"
+    org_name_zh_tw: "印度尼西亞Samsonite"
+    org_name_jp: "インドネシアSamsonite"
+    country_code: "ID"
+    currency: "IDR"
+    timezone: "Asia/Jakarta"
+    active: false
+
+  - org_id: "5630"
+    org_name: "Japan Samsonite"
+    org_name_zh: "日本Samsonite"
+    org_name_zh_tw: "日本Samsonite"
+    org_name_jp: "日本サムソナイト"
+    country_code: "JP"
+    currency: "JPY"
+    timezone: "Asia/Tokyo"
+    active: true
+    
+    
+  - org_id: "5710"
+    org_name: "Singapore Tumi"
+    org_name_zh: "新加坡Tumi"
+    org_name_zh_tw: "新加坡Tumi"
+    org_name_jp: "シンガポールTumi"
+    country_code: "SG"
+    currency: "SGD"
+    timezone: "Asia/Singapore"
+    active: true
 
   - org_id: "5750"
     org_name: "Malaysia Tumi"
@@ -58,7 +108,7 @@ organizations:
     country_code: "MY"
     currency: "MYR"
     timezone: "Asia/Kuala_Lumpur"
-    active: false
+    active: true
 
   - org_id: "5760"
     org_name: "Taiwan Tumi"
@@ -89,4 +139,43 @@ organizations:
     currency: "MOP"
     timezone: "Asia/Macau"
     active: true
+    
+  - org_id: "5840_10"
+    org_name: "Thailand Tumi COS"
+    org_name_zh: "泰国Tumi COS"
+    org_name_zh_tw: "泰國Tumi COS"
+    org_name_jp: "タイTumi COS"
+    country_code: "TH"
+    currency: "THB"
+    timezone: "Asia/Bangkok"
+    active: true
+    
+  - org_id: "5840_19"
+    org_name: "Thailand Tumi SIS"
+    org_name_zh: "泰国Tumi SIS"
+    org_name_zh_tw: "泰國Tumi SIS"
+    org_name_jp: "タイTumi SIS"
+    country_code: "TH"
+    currency: "THB"
+    timezone: "Asia/Bangkok"
+    active: true
 
+  - org_id: "5880"
+    org_name: "Indonesia Tumi"
+    org_name_zh: "印度尼西亚Tumi"
+    org_name_zh_tw: "印度尼西亞Tumi"
+    org_name_jp: "インドネシアTumi"
+    country_code: "ID"
+    currency: "IDR"
+    timezone: "Asia/Jakarta"
+    active: false
+    
+  - org_id: "5830"
+    org_name: "Japan Tumi"
+    org_name_zh: "日本Tumi"
+    org_name_zh_tw: "日本Tumi"
+    org_name_jp: "日本タミ"
+    country_code: "JP"
+    currency: "JPY"
+    timezone: "Asia/Tokyo"
+    active: true

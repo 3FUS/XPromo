@@ -14,7 +14,7 @@ import hmac
 
 from utils.logger import app_logger
 
-router = APIRouter(prefix="/sales", tags=["sales"])
+router = APIRouter(prefix="/sales", tags=["competitor"])
 
 COMPETITOR_SALES_SIGNATURE_KEY = "64afbfe1cb2245818251bc8f8e08aa90"
 

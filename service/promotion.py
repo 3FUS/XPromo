@@ -1083,7 +1083,8 @@ async def process_promotion_data(promotion_id: int, session, location_id):
                               promotion_cust_segments_data, config['promotion_type'], config['coupon_code'],
                               config['promotion_status'])
         if promotion_attributes_data:
-            _build_deal_trig_data_by_attribute(data_containers, promotion_id,config['subclass_id'], config['set_ids'],promotion_attributes_data,
+            _build_deal_trig_data_by_attribute(data_containers, promotion_id, config['subclass_id'], config['set_ids'],
+                                               promotion_attributes_data,
                                                )
         # 组装最终结果
         data_detail = _assemble_data_detail(data_containers, promotion_id, config['subclass_id'], config['set_ids'])
@@ -1177,7 +1178,7 @@ def _build_deal_data(data_containers, promotion_id, config, item_set):
         deal_template['trwide_amount'] = config['discount_value']
 
     # 根据 subclass_id 和 item_set 决定是否需要拆分
-    if config['subclass_id'] == '99' and item_set == 2:
+    if config['subclass_id'] == '99': # and item_set == 2:
         for set_id_info in config['set_ids']:
             deal_copy = deal_template.copy()
             deal_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1357,9 +1358,9 @@ def _process_not_equal_items_only(data_containers, promotion_id, subclass_id, it
                                   not_equal_items, start_serial):
     """处理只有 not equal items 的情况"""
     serial_number = start_serial
-
+    item_condition_seq = 2
     for not_item in not_equal_items:
-        item_condition_seq = 1
+        # item_condition_seq = 1
         item_type = 1 if not_item['item_type'] == 'Condition' else 2
 
         if item_set in [1, 0] and item_type != 1:
@@ -1369,13 +1370,14 @@ def _process_not_equal_items_only(data_containers, promotion_id, subclass_id, it
             **promotion_mapping["DEAL_ITEM_TEST"],
             "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
             "item_ordinal": not_item['set_id'],
-            "item_condition_group": serial_number,
+            "item_condition_group": 1,
             "item_condition_seq": item_condition_seq,
             "item_field": f"ITEM_PROPERTY:ITM_PROP_{not_item['segment_id']}",
             "match_rule": 'NOT_EQUAL'
         }
         data_containers['PRC_DEAL_FIELD_TEST'].append(deal_field_test)
-        serial_number += 1
+        # serial_number += 1
+        item_condition_seq += 1
 
 
 def _build_deal_loc_data(data_containers, promotion_id, subclass_id, set_ids, location_id):

@@ -8,10 +8,10 @@ from schemas.commission_pattern import (
     CommissionPatternBrandCreate,
     CommissionPatternQueryParams
 )
-from models.model import LOC_ORG_HIERARCHY
+from models.model import LOC_ORG_HIERARCHY, WorkerTask
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from sqlalchemy import func
+from sqlalchemy import case, func, text
 from service.segments_service import generate_segment_id
 
 
@@ -30,7 +30,10 @@ async def get_commission_pattern_list(
             CommissionPattern,
             CommissionPatternCategory.category_name,
             CommissionPatternBrand.brand_name,
-            LOC_ORG_HIERARCHY.DESCRIPTION
+            LOC_ORG_HIERARCHY.DESCRIPTION,
+            func.sum(case((WorkerTask.status == 'N', 1), else_=0)).label('count_N'),
+            func.sum(case((WorkerTask.status == 'E', 1), else_=0)).label('count_E'),
+            func.sum(case((WorkerTask.status == 'D', 1), else_=0)).label('count_D')
         ).outerjoin(
             CommissionPatternCategory,
             CommissionPattern.category_code == CommissionPatternCategory.category_code
@@ -41,7 +44,11 @@ async def get_commission_pattern_list(
             LOC_ORG_HIERARCHY,
             (CommissionPattern.location_id == LOC_ORG_HIERARCHY.ORG_VALUE) &
             (LOC_ORG_HIERARCHY.ORG_CODE == 'STORE')
-        )
+        ).outerjoin(
+            WorkerTask,
+            CommissionPattern.last_session_id == WorkerTask.session_id
+        ).group_by(CommissionPattern, CommissionPatternCategory.category_name, CommissionPatternBrand.brand_name,
+                   LOC_ORG_HIERARCHY.DESCRIPTION)
 
         # 关键字模糊查询
         if params.key_word:
@@ -66,7 +73,7 @@ async def get_commission_pattern_list(
 
         # 格式化结果，包含分类名称和品牌名称
         formatted_data = []
-        for pattern, category_name, brand_name, store_name in items:
+        for pattern, category_name, brand_name, store_name,count_N, count_E, count_D in items:
             pattern_dict = {
                 "commission_pattern_id": pattern.commission_pattern_id,
                 "location_id": pattern.location_id,
@@ -80,6 +87,11 @@ async def get_commission_pattern_list(
                 "p_value": pattern.p_value,
                 "s_value": pattern.s_value,
                 "status": pattern.status,
+                'export_status_counts': {
+                    'New': count_N or 0,
+                    'Error': count_E or 0,
+                    'Done': count_D or 0
+                },
                 "last_export_time": pattern.last_export_time,
                 "create_time": pattern.create_time,
                 "create_user": pattern.create_user,
@@ -98,6 +110,14 @@ async def get_commission_pattern_list(
         app_logger.error(f"Error getting commission pattern list: {str(e)}")
         raise e
 
+async def update_commission_pattern_export_time(session, commission_pattern_id, last_export_time, last_session_id):
+    updated_data = session.query(CommissionPattern).filter(CommissionPattern.commission_pattern_id == commission_pattern_id).first()
+    if updated_data:
+        updated_data.last_export_time = last_export_time
+        updated_data.last_session_id = last_session_id
+        session.commit()
+        session.refresh(updated_data)
+    return updated_data
 
 async def get_commission_pattern_by_id(
         session: Session,
@@ -239,7 +259,9 @@ async def delete_commission_pattern(
     删除佣金模式
     """
     try:
-        pattern = await get_commission_pattern_by_id(session, commission_pattern_id)
+        pattern = session.query(CommissionPattern).filter(
+            CommissionPattern.commission_pattern_id == commission_pattern_id
+        ).first()
 
         if not pattern:
             return False
@@ -341,7 +363,24 @@ async def create_commission_pattern_category(
             session, category_data.category_code
         )
         if existing:
-            raise ValueError("Category already exists")
+            if existing.status == 'active':
+                existing.category_name = category_data.category_name
+                existing.update_time = datetime.now()
+                existing.update_user = category_data.create_user
+                session.commit()
+                session.refresh(existing)
+                app_logger.info(f"update category name: {category_data.category_name}")
+                return existing
+                # raise ValueError("Category already exists")
+            existing.status = 'active'
+            existing.category_name = category_data.category_name
+            existing.sort_order = category_data.sort_order
+            existing.update_time = datetime.now()
+            existing.update_user = category_data.create_user
+            session.commit()
+            session.refresh(existing)
+            app_logger.info(f"Reactivated commission pattern category: {category_data.category_name}")
+            return existing
 
         new_category = CommissionPatternCategory(
             category_code=category_data.category_code,
@@ -473,12 +512,27 @@ async def create_commission_pattern_brand(
     创建佣金模式品牌
     """
     try:
-        # 检查是否已存在
         existing = await get_commission_pattern_brand_by_code(
             session, brand_data.brand_code
         )
         if existing:
-            raise ValueError("Brand already exists")
+            if existing.status == 'active':
+                existing.brand_name = brand_data.brand_name
+                existing.update_time = datetime.now()
+                existing.update_user = brand_data.create_user
+                session.commit()
+                session.refresh(existing)
+                app_logger.info(f"update brand name: {brand_data.brand_name}")
+                return existing
+            existing.status = 'active'
+            existing.brand_name = brand_data.brand_name
+            existing.sort_order = brand_data.sort_order
+            existing.update_time = datetime.now()
+            existing.update_user = brand_data.create_user
+            session.commit()
+            session.refresh(existing)
+            app_logger.info(f"Reactivated commission pattern brand: {brand_data.brand_name}")
+            return existing
 
         new_brand = CommissionPatternBrand(
             brand_code=brand_data.brand_code,
@@ -499,7 +553,6 @@ async def create_commission_pattern_brand(
         session.rollback()
         app_logger.error(f"Error creating commission pattern brand: {str(e)}")
         raise e
-
 
 async def delete_or_deactivate_commission_pattern_brand(
         session: Session,
@@ -598,7 +651,6 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
          "action": action,
          "data": COM_CODE_VALUE})
 
-
     data_detail.append(
         {'table': 'COM_CODE_VALUE', 'table_key': ['organization_id', 'category', 'code'],
          "action": "INSERT_AND_UPDATE",
@@ -607,7 +659,7 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
 
     data_detail.append(
         {'table': 'COM_TRANS_PROMPT_PROPERTIES', 'table_key': ['organization_id', 'trans_prompt_property_code'],
-         "action": action,
+         "action": "INSERT_AND_UPDATE",
          "data": [{**commission_mapping["COM_TRANS_PROMPT_PROPERTIES"],
                    "trans_prompt_property_code": "SAM_COMMISSIONPATTERN"}]})
 

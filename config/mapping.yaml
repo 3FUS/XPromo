@@ -44,3 +44,31 @@ segment_mapping:
     org_value: "*"
     type: "STRING"
     string_value: "TRUE"
+
+commission_mapping:
+  COM_CODE_VALUE_P:
+    organization_id: 1
+    category: "SAM_COMMISSION"
+    type: "DECIMAL"
+  COM_CODE_VALUE:
+    organization_id: 1
+    category: "SAM_COMMISSION"
+    CONFIG_ELEMENT: "*"
+  COM_TRANS_PROMPT_PROPERTIES:
+    organization_id: 1
+    org_code: "*"
+    org_value: "*"
+    effective_date: "1900-01-01 00:00:00"
+    expiration_date: "2099-01-01 00:00:00"
+    code_category: "SAM_COMMISSION"
+    prompt_title_key: "_samCommissionPatternTitle"
+    prompt_msg_key: "_samCommissionPatternMsg"
+    required_flag: 1
+    sort_order: 10
+    prompt_mthd_code: "LIST"
+    transaction_state: "PRE_SALE"
+  COM_TRANSLATIONS:
+    organization_id: 1
+    locale: "DEFAULT"
+    org_code: "*"
+    org_value: "*"

@@ -5,5 +5,7 @@ attributes:
       - ""
       - "Silver"
       - "Gold"
+      - "Black"
+      - "Platinum"
       - "STAFF"
     table_name: "PRC_DEAL_TRIG"

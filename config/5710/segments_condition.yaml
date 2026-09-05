@@ -1,0 +1,61 @@
+item:
+  - condition_name: "DEPARTMENT"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["SELECT DISTINCT m.hierarchy_id, m.description FROM itm_merch_hierarchy m INNER JOIN ITM_ITEM i ON m.hierarchy_id = i.MERCH_LEVEL_1 INNER JOIN itm_item_prices p ON i.ITEM_ID = p.ITEM_ID WHERE m.LEVEL_CODE = 'DEPARTMENT' AND p.level_code = 'SALESORG' AND p.level_value = '5710' ORDER BY m.description ASC OPTION (HASH JOIN, MERGE JOIN)"]
+  - condition_name: "SUBDEPARTMENT"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["SELECT DISTINCT m.hierarchy_id, m.description FROM itm_merch_hierarchy m INNER JOIN ITM_ITEM i ON m.hierarchy_id = i.MERCH_LEVEL_2 INNER JOIN itm_item_prices p ON i.ITEM_ID = p.ITEM_ID WHERE m.LEVEL_CODE = 'SUBDEPARTMENT' AND p.level_code = 'SALESORG' AND p.level_value = '5710' ORDER BY m.description ASC OPTION (HASH JOIN, MERGE JOIN)"]
+  - condition_name: "Brand"
+    condition_type: ['=', '<>', 'include', 'exclude']
+    value_type: "SQL"
+    condition_value: ["SELECT DISTINCT o.vendor,o.vendor FROM itm_item_options o INNER JOIN itm_item_prices p ON o.ITEM_ID = p.ITEM_ID WHERE o.vendor IS NOT NULL AND p.level_code = 'SALESORG' AND p.level_value = '5710' ORDER BY o.vendor ASC"]
+  - condition_name: "MATERIAL"
+    condition_type: ['=', 'include']
+    value_type: "string"
+  - condition_name: "GRID"
+    condition_type: ['=', 'include']
+    value_type: "string"
+  - condition_name: "STYLE"
+    condition_type: ['=', 'include']
+    value_type: "string"
+  - condition_name: "Item ID"
+    condition_type: ['=', 'include']
+    value_type: "string"
+location:
+  - condition_name: "City"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT lrl.City,lrl.City FROM LOC_RTL_LOC lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5710' and lrl.City is not NULL ORDER BY lrl.City ASC" ]
+  - condition_name: "Store Type"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "select DISTINCT lrl.location_type,lrl.location_type from loc_rtl_loc lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5710' and lrl.location_type is not null ORDER BY lrl.location_type ASC" ]
+  - condition_name: "GEO Code"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "select DISTINCT lrl.GEO_CODE,lrl.GEO_CODE from loc_rtl_loc lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5710' and lrl.GEO_CODE is not null ORDER BY lrl.GEO_CODE ASC" ]
+  - condition_name: "Location ID"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT lrl.rtl_loc_id,CONCAT(lrl.rtl_loc_id, ' - ', lrl.store_name) AS store_name from loc_rtl_loc lrl INNER JOIN LOC_ORG_HIERARCHY loh ON lrl.RTL_LOC_ID = loh.org_value WHERE loh.parent_value = '5710' ORDER BY lrl.rtl_loc_id ASC" ]
+customer:
+  - condition_name: "Gender"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT cp.Gender,cp.Gender FROM crm_party cp INNER JOIN LOC_ORG_HIERARCHY loh ON cp.sign_up_rtl_loc_id = loh.org_value WHERE loh.parent_value = '5710' and cp.Gender is not NULL" ]
+  - condition_name: "Birthday"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "Date"
+  - condition_name: "VIP TYPE"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT cp.party_typcode,cp.party_typcode FROM crm_party cp INNER JOIN LOC_ORG_HIERARCHY loh ON cp.sign_up_rtl_loc_id = loh.org_value WHERE loh.parent_value = '5710' and cp.party_typcode is not NULL" ]
+  - condition_name: "Telephone"
+    condition_type: [ '=','include' ]
+    value_type: "number"
+  - condition_name: "SignUp Location"
+    condition_type: [ '=', '<>', 'include', 'exclude' ]
+    value_type: "SQL"
+    condition_value: [ "SELECT DISTINCT cp.sign_up_rtl_loc_id,cp.sign_up_rtl_loc_id FROM crm_party cp INNER JOIN LOC_ORG_HIERARCHY loh ON cp.sign_up_rtl_loc_id = loh.org_value WHERE loh.parent_value = '5710' and cp.sign_up_rtl_loc_id is not NULL" ]

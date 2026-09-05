@@ -52,6 +52,8 @@ promotion_template:
     description_zh_tw: 折扣金額應用於交易小計
     description_jp: 金額がX円以上の場合、Y円の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '2'
     code: Spend X$ or more, get Y% off
@@ -63,6 +65,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於交易小計
     description_jp: 金額がX円以上の場合、Y％の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '4'
     code: Purchase X item(s) or more, get Y% off
@@ -74,6 +78,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテム以上を購入すると、Y％の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '5'
     code: Purchase every X item(s), get Y% off
@@ -85,6 +91,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '6'
     code: Purchase X item(s) or more, get Y$ off
@@ -96,6 +104,8 @@ promotion_template:
     description_zh_tw: 折扣金額應用於交易小計
     description_jp: 金額がX円以上の場合、Y円の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '7'
     code: Purchase every X item(s), get Y$ off
@@ -107,6 +117,8 @@ promotion_template:
     description_zh_tw: 折扣金額應用於商品行項目
     description_jp: 割引金額は商品明細項目に適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '8'
     code: Purchase every 1 item(s), get Y% off
@@ -118,6 +130,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: A
+    attributes:
+      - CUSTGROUP: ''
     price_tag: 1
     stackable: 0
   - subclass_id: '1'
@@ -130,6 +144,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '2'
     code: Purchase X$ or more, fixed price Y$ (1 set)
@@ -141,6 +157,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: 金額がX円以上の場合、Y円の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '3'
     code: Purchase X$ or more, fixed price Y$ (2 set)
@@ -152,6 +170,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X円以上でY円の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '4'
     code: Purchase X item(s), fixed price Y$
@@ -164,6 +184,8 @@ promotion_template:
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     iteration_cap: 1
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '5'
     code: Purchase X item(s), fixed price Y$ (2 SET)
@@ -175,6 +197,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '99'
     code: 'Import fixed price Y$ for mutiple items '
@@ -186,6 +210,8 @@ promotion_template:
     description_zh_tw: 固定價格應用於商品行項目
     description_jp: X個アイテムを購入すると、Y円の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     import: 1
     price_tag: 1
     stackable: 0
@@ -199,6 +225,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: B
+    attributes:
+      - CUSTGROUP: ''
     price_tag: 1
     stackable: 0    
   - subclass_id: '1'
@@ -211,6 +239,8 @@ promotion_template:
     description_zh_tw: 免費商品應用於商品行項目
     description_jp: X個アイテムを購入すると、Y個のアイテムが無料
     class_id: C
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '2'
     code: Purchase X item(s) or more, get Y item(s) free
@@ -222,6 +252,8 @@ promotion_template:
     description_zh_tw: 免費商品應用於商品行項目
     description_jp: X個アイテムを購入すると、Y個のアイテムが無料
     class_id: C
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '3'
     code: Purchase X$ or more, get Y item(s) free
@@ -233,6 +265,8 @@ promotion_template:
     description_zh_tw: 免費商品應用於商品行項目
     description_jp: 無料商品は商品行項目に適用されます
     class_id: C
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '4'
     code: Purchase X item(s) and Y item(s), get Z item(s) free
@@ -244,6 +278,8 @@ promotion_template:
     description_zh_tw: 免費商品應用於商品行項目
     description_jp: X個アイテムを購入すると、Y個のアイテムが無料
     class_id: C
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '1'
     code: Purchase every X item(s) get Y% off
@@ -255,6 +291,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: D
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '2'
     code: Purchase X item(s) or more, get Y% off
@@ -266,6 +304,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: D
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '3'
     code: Purchase A item(s) and B item(s), get Z% off
@@ -277,6 +317,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: D
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
   - subclass_id: '4'
     code: Purchase A item(s) , B item(s) and C item(s), get Z% off
@@ -288,6 +330,8 @@ promotion_template:
     description_zh_tw: 折扣百分比應用於商品行項目
     description_jp: X個アイテムを購入すると、Y％の割引が適用されます
     class_id: D
+    attributes:
+      - CUSTGROUP: ''
     stackable: 0
 promotion_template_default_p:
   A:
