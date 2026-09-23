@@ -103,7 +103,7 @@ from routers.user import router as user_api_router
 from routers.segments import router as segments_api_router
 from routers.competitorsales import router as competitor_sales_api_router
 from routers.commissionpattern import router as commission_pattern_api_router
-from routers.inventory import router as inventory_api_router
+# from routers.inventory import router as inventory_api_router
 
 
 app.include_router(configuration_api_router)
@@ -112,7 +112,7 @@ app.include_router(user_api_router, prefix="/user_api")
 app.include_router(segments_api_router, prefix="/promotion_api/segments", tags=["segments"])
 app.include_router(competitor_sales_api_router, prefix="/competitor_api", tags=["competitor"])
 app.include_router(commission_pattern_api_router, prefix="/commission_api", tags=["commission_pattern"])
-app.include_router(inventory_api_router, prefix="/inventory_api", tags=["inventory"])
+# app.include_router(inventory_api_router, prefix="/inventory_api", tags=["inventory"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="promotion_api/token")
 
