@@ -180,8 +180,8 @@ class SegmentsCustomer(Base):
     __tablename__ = 'segments_customers'
     org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
-    name = Column(NVARCHAR(30))
-    description = Column(NVARCHAR(60))
+    name = Column(NVARCHAR(80))
+    description = Column(NVARCHAR(120))
     segment_status = Column(String(30), comment="客户标签状态")
     condition_type = Column(String(30))
     create_type = Column(String(30), comment="创建类型")
@@ -212,8 +212,8 @@ class SegmentsItem(Base):
     __tablename__ = 'segments_items'
     org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
-    name = Column(NVARCHAR(30))
-    description = Column(NVARCHAR(60))
+    name = Column(NVARCHAR(80))
+    description = Column(NVARCHAR(120))
     segment_status = Column(String(30), comment="商品标签状态")
     condition_type = Column(String(30))
     create_type = Column(String(30), comment="创建类型")
@@ -257,8 +257,8 @@ class SegmentsLocation(Base):
     __tablename__ = 'segments_locations'
     org_id = Column(String(30))
     segment_id = Column(Integer, primary_key=True)
-    name = Column(NVARCHAR(30))
-    description = Column(NVARCHAR(60))
+    name = Column(NVARCHAR(80))
+    description = Column(NVARCHAR(120))
     segment_status = Column(String(30), comment="门店标签状态")
     condition_type = Column(String(30))
     create_type = Column(String(30), comment="创建类型")

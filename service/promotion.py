@@ -44,6 +44,14 @@ def generate_promotion_id(session: Session, sequence_type: str = 'promotion'):
 
     return current_id
 
+def check_coupon_code_exists(session: Session, org_id: str, coupon_code: str, exclude_promotion_id: int = None):
+    query = session.query(Promotion).filter(
+        Promotion.org_id == org_id,
+        Promotion.coupon_code == coupon_code
+    )
+    if exclude_promotion_id:
+        query = query.filter(Promotion.promotion_id != exclude_promotion_id)
+    return query.first() is not None
 
 # 新增: create_promotion 方法
 async def create_promotion(session: Session, promotion: Promotion, user_id='', org_id=None):
@@ -67,7 +75,7 @@ async def create_promotion(session: Session, promotion: Promotion, user_id='', o
         if Promotion.subclass_id:
             new_promotion.subclass_id = promotion.subclass_id
         if promotion.coupon_code:
-            new_promotion.coupon_code = promotion.coupon_code
+            new_promotion.coupon_code = promotion.coupon_code.upper()
         if hasattr(promotion, 'price_tag'):
             new_promotion.price_tag = promotion.price_tag
         if hasattr(promotion, 'stackable'):
@@ -102,7 +110,7 @@ async def update_promotion(session: Session, promotion_data: Promotion, user_id=
             updated_promotion.promotion_level = promotion_data.promotion_level
             updated_promotion.promotion_type = promotion_data.promotion_type.value
             if promotion_data.coupon_code:  # 仅在 coupon_code 不为空时更新
-                updated_promotion.coupon_code = promotion_data.coupon_code
+                updated_promotion.coupon_code = promotion_data.coupon_code.upper()
             else:
                 updated_promotion.coupon_code = None
             updated_promotion.iteration_cap = promotion_data.iteration_cap
@@ -1077,7 +1085,7 @@ async def process_promotion_data(promotion_id: int, session, location_id):
         _build_deal_item_data(data_containers, promotion_id, config, item_set, promotion_condition_data,
                               promotion_result_data)
         _build_deal_field_test_data(data_containers, promotion_id, config['subclass_id'], item_set,
-                                    promotion_item_segments_data)
+                                    promotion_item_segments_data,config['set_ids'])
         _build_deal_loc_data(data_containers, promotion_id, config['subclass_id'], config['set_ids'], location_id)
         _build_deal_trig_data(data_containers, promotion_id, config['subclass_id'], config['set_ids'],
                               promotion_cust_segments_data, config['promotion_type'], config['coupon_code'],
@@ -1134,6 +1142,11 @@ def _extract_promotion_config(promotion_data, promotion_result_data, promotion_c
             'overlap': first_result.overlap,
             'action_qty': first_result.action_qty
         })
+        if len(promotion_result_data) > 1:
+            config['discount_details'] = [
+                {'set_id': r.set_id, 'discount_value': r.discount_value}
+                for r in promotion_result_data
+            ]
 
     # 安全获取条件数据
     if promotion_condition_data:
@@ -1153,6 +1166,11 @@ def _get_item_set_type(org_id, class_id, subclass_id):
     """获取 item_set 类型"""
     promotion_config = get_promotion_config(org_id, 'promotion_template_default_p')
     return promotion_config[class_id][subclass_id].get('item_set', 2)
+
+
+def _is_copy_subclass(subclass_id):
+    """判断是否需要使用 copy 逻辑（subclass_id 为 '99' 或以 '90' 开头如 '90-1', '90-2'）"""
+    return subclass_id == '99' or str(subclass_id).startswith('90')
 
 
 def _build_deal_data(data_containers, promotion_id, config, item_set):
@@ -1178,10 +1196,14 @@ def _build_deal_data(data_containers, promotion_id, config, item_set):
         deal_template['trwide_amount'] = config['discount_value']
 
     # 根据 subclass_id 和 item_set 决定是否需要拆分
-    if config['subclass_id'] == '99': # and item_set == 2:
+    if _is_copy_subclass(config['subclass_id']):  # and item_set == 2:
+        discount_map = {d['set_id']: d['discount_value'] for d in config.get('discount_details', [])} if config.get(
+            'discount_details') else {}
         for set_id_info in config['set_ids']:
             deal_copy = deal_template.copy()
             deal_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+            if config['apply_type'] == 'Transaction' and set_id_info['set_id'] in discount_map:
+                deal_copy['trwide_amount'] = discount_map[set_id_info['set_id']]
             data_containers['PRC_DEAL'].append(deal_copy)
     else:
         data_containers['PRC_DEAL'].append(deal_template)
@@ -1195,7 +1217,7 @@ def _build_deal_p_data(data_containers, promotion_id, stackable, subclass_id, se
         "string_value": 'Enable' if stackable else 'Disable'
     }
 
-    if subclass_id == '99':
+    if _is_copy_subclass(subclass_id):
         for set_id_info in set_ids:
             deal_p_copy = deal_p_template.copy()
             deal_p_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1207,6 +1229,7 @@ def _build_deal_p_data(data_containers, promotion_id, stackable, subclass_id, se
 def _build_deal_item_data(data_containers, promotion_id, config, item_set, promotion_condition_data,
                           promotion_result_data):
     """构建 DEAL_ITEM 数据"""
+    app_logger.info(f"开始构建 DEAL_ITEM 数据，promotion_id: {promotion_id}, item_set: {item_set}")
     if item_set == 1:
         _build_deal_item_type_1(data_containers, promotion_id, config)
     elif item_set == 2:
@@ -1269,12 +1292,14 @@ def _build_deal_item_type_0(data_containers, promotion_id, config, promotion_con
 
     for condition in promotion_condition_data:
         set_id = condition.set_id
+        # app_logger.info(f" build_deal_item_type_0 开始处理 set_id: {set_id}, promotion_id: {promotion_id}")
         result_data = result_by_set_id.get(set_id)
 
         if result_data:
             deal_item = {
                 **promotion_mapping["DEAL_ITEM_1"],
-                "deal_id": promotion_id if config['subclass_id'] != '99' else f"{promotion_id}:{set_id}",
+                # "deal_id": promotion_id if config['subclass_id'] != '99' else f"{promotion_id}:{set_id}",
+                "deal_id":  f"{promotion_id}:{set_id}" if _is_copy_subclass(config['subclass_id']) else promotion_id,
                 "item_ordinal": set_id,
                 "consumable": 1 if config['overlap'] == 0 else 0,
                 "qty_min": condition.MinQty if condition.MinQty is not None else 1,
@@ -1287,9 +1312,22 @@ def _build_deal_item_type_0(data_containers, promotion_id, config, promotion_con
             data_containers['PRC_DEAL_ITEM'].append(deal_item)
 
 
-def _build_deal_field_test_data(data_containers, promotion_id, subclass_id, item_set, promotion_item_segments_data):
+def _build_deal_field_test_data(data_containers, promotion_id, subclass_id, item_set, promotion_item_segments_data,set_ids):
     """构建 DEAL_FIELD_TEST 数据"""
     from collections import defaultdict
+
+    if str(subclass_id).startswith('90') and set_ids:
+        app_logger.info(f"开始处理 DEAL_FIELD_TEST 90 subclass_id: {subclass_id}, set_ids: {set_ids}")
+
+        base_items = [item for item in promotion_item_segments_data if item['set_id'] == 1]
+        expanded_items = []
+        for set_id_info in set_ids:
+            sid = set_id_info['set_id']
+            for item in base_items:
+                copied = item.copy()
+                copied['set_id'] = sid
+                expanded_items.append(copied)
+        promotion_item_segments_data = expanded_items
 
     grouped_items = defaultdict(list)
     for item in promotion_item_segments_data:
@@ -1323,7 +1361,8 @@ def _process_equal_items(data_containers, promotion_id, subclass_id, item_set,
 
         deal_field_test = {
             **promotion_mapping["DEAL_ITEM_TEST"],
-            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
+            # "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{item['set_id']}",
+            "deal_id": f"{promotion_id}:{item['set_id']}" if _is_copy_subclass(subclass_id) else promotion_id,
             "item_ordinal": item['set_id'],
             "item_condition_group": serial_number,
             "item_condition_seq": item_condition_seq,
@@ -1342,7 +1381,8 @@ def _process_equal_items(data_containers, promotion_id, subclass_id, item_set,
 
             deal_field_test = {
                 **promotion_mapping["DEAL_ITEM_TEST"],
-                "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+                # "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+                "deal_id": f"{promotion_id}:{not_item['set_id']}" if _is_copy_subclass(subclass_id) else promotion_id,
                 "item_ordinal": not_item['set_id'],
                 "item_condition_group": serial_number,
                 "item_condition_seq": item_condition_seq,
@@ -1368,7 +1408,8 @@ def _process_not_equal_items_only(data_containers, promotion_id, subclass_id, it
 
         deal_field_test = {
             **promotion_mapping["DEAL_ITEM_TEST"],
-            "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+            # "deal_id": promotion_id if subclass_id != '99' else f"{promotion_id}:{not_item['set_id']}",
+            "deal_id": f"{promotion_id}:{not_item['set_id']}" if _is_copy_subclass(subclass_id) else promotion_id,
             "item_ordinal": not_item['set_id'],
             "item_condition_group": 1,
             "item_condition_seq": item_condition_seq,
@@ -1388,7 +1429,7 @@ def _build_deal_loc_data(data_containers, promotion_id, subclass_id, set_ids, lo
         "rtl_loc_id": location_id
     }
 
-    if subclass_id == '99':
+    if _is_copy_subclass(subclass_id):
         for set_id_info in set_ids:
             deal_loc_copy = deal_loc_template.copy()
             deal_loc_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1410,7 +1451,7 @@ def _build_deal_trig_data_by_attribute(data_containers, promotion_id, subclass_i
             "deal_trigger": f"{attribute['attribute_code']}:{attribute['attribute_value']}"
         }
 
-        if subclass_id == '99':
+        if _is_copy_subclass(subclass_id):
             for set_id_info in set_ids:
                 deal_trig_copy = deal_trig.copy()
                 deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1430,7 +1471,7 @@ def _build_deal_trig_data(data_containers, promotion_id, subclass_id, set_ids,
             "deal_trigger": f"SEGMENT:{'' if cust['include'] else '~'}{cust['segment_id']}"
         }
 
-        if subclass_id == '99':
+        if _is_copy_subclass(subclass_id):
             for set_id_info in set_ids:
                 deal_trig_copy = deal_trig.copy()
                 deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1446,7 +1487,7 @@ def _build_deal_trig_data(data_containers, promotion_id, subclass_id, set_ids,
             "deal_trigger": f"COUPON:INPUT_COUPON:{coupon_code}"
         }
 
-        if subclass_id == '99':
+        if _is_copy_subclass(subclass_id):
             for set_id_info in set_ids:
                 deal_trig_copy = deal_trig.copy()
                 deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
@@ -1537,7 +1578,7 @@ def _assemble_data_detail(data_containers, promotion_id, subclass_id, set_ids):
         }
 
         prc_deal_trig_delete = []
-        if subclass_id == '99':
+        if _is_copy_subclass(subclass_id):
             for set_id_info in set_ids:
                 deal_trig_copy = deal_trig_template.copy()
                 deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"

@@ -323,11 +323,26 @@ async def get_commission_pattern_category_list(
             CommissionPatternCategory.create_time.desc()
         ).offset((page - 1) * page_size).limit(page_size).all()
 
+        default_item = {
+            "category_code": "NS",
+            "category_name": "通常販売",
+            "status": "active",
+            "sort_order": 0
+        }
+        data = [default_item] + [
+            {
+                "category_code": item.category_code,
+                "category_name": item.category_name,
+                "status": item.status,
+                "sort_order": item.sort_order
+            } for item in items
+        ]
+
         return {
-            "total": total,
+            "total": total + 1,
             "page": page,
             "page_size": page_size,
-            "data": items
+            "data": data
         }
     except Exception as e:
         app_logger.error(f"Error getting commission pattern category list: {str(e)}")

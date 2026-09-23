@@ -39,7 +39,7 @@ from service.promotion import create_promotion, create_promotion_condition, crea
     get_promotion_location_detail_by_id_v2, process_promotion_data, delete_promotion_condition, delete_promotion_result, \
     delete_promotion_import, get_promotion_import_by_id, get_location_detail_by_promotionId, \
     get_promotion_export_status, delete_promotion_attributes, create_promotion_attributes, \
-    get_promotion_attributes_by_id
+    get_promotion_attributes_by_id, check_coupon_code_exists
 
 from service.worker import create_worker_task, create_termination_task
 from service.access_service import verify_password, get_sys_user_configuration
@@ -103,6 +103,8 @@ from routers.user import router as user_api_router
 from routers.segments import router as segments_api_router
 from routers.competitorsales import router as competitor_sales_api_router
 from routers.commissionpattern import router as commission_pattern_api_router
+from routers.inventory import router as inventory_api_router
+
 
 app.include_router(configuration_api_router)
 app.include_router(worker_api_router, prefix="/worker", tags=["worker"])
@@ -110,6 +112,7 @@ app.include_router(user_api_router, prefix="/user_api")
 app.include_router(segments_api_router, prefix="/promotion_api/segments", tags=["segments"])
 app.include_router(competitor_sales_api_router, prefix="/competitor_api", tags=["competitor"])
 app.include_router(commission_pattern_api_router, prefix="/commission_api", tags=["commission_pattern"])
+app.include_router(inventory_api_router, prefix="/inventory_api", tags=["inventory"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="promotion_api/token")
 
@@ -650,6 +653,13 @@ async def submit_promotion(
 
         if promotionsubmit.promotion.promotion_id:
             promotion_id = promotionsubmit.promotion.promotion_id
+            if promotionsubmit.promotion.coupon_code:
+                coupon_code_upper = promotionsubmit.promotion.coupon_code.upper()
+                existing_promotion = await get_promotion_by_id(session, promotion_id)
+                if check_coupon_code_exists(session, existing_promotion.org_id, coupon_code_upper,
+                                            exclude_promotion_id=promotion_id):
+                    return {'code': 301,
+                            "msg": get_message("coupon_code_already_exists", lang, coupon_code=coupon_code_upper)}
             await update_promotion(session, promotionsubmit.promotion, user_id)
             # await update_promotion_condition(session, promotionsubmit.promotion.promotion_id,
             #                                  promotionsubmit.promotion_condition, user_id)
@@ -663,6 +673,11 @@ async def submit_promotion(
             await delete_promotion_customer_segments(session, promotion_id)
             await delete_promotion_attributes(session, promotion_id)
         else:
+            if promotionsubmit.promotion.coupon_code:
+                coupon_code_upper = promotionsubmit.promotion.coupon_code.upper()
+                if check_coupon_code_exists(session, org_id, coupon_code_upper):
+                    return {'code': 301,
+                            "msg": get_message("coupon_code_already_exists", lang, coupon_code=coupon_code_upper)}
             new_promotion = await create_promotion(session, promotionsubmit.promotion, user_id, org_id)
             promotion_id = new_promotion.promotion_id
             # await create_promotion_condition(session, promotion_id, promotionsubmit.promotion,
@@ -1123,6 +1138,7 @@ async def read_promotion_dashboard(org_id: str = '',
         return {'code': 301, "msg": str(e)}
 
 #
+# # # # # #
 if __name__ == '__main__':
     import uvicorn
 

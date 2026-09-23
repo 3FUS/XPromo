@@ -273,17 +273,17 @@ async def upload_segment(segment_type: Segment_Type, name: str, description: str
         # upload_data = standardize_columns(upload_data)
 
         segment_classes = {
-            Segment_Type.item: (SegmentsItem, SegmentsItemDetail, get_item_segment_by_name, create_segment_item),
+            Segment_Type.item: (SegmentsItem, SegmentsItemDetail, create_segment_item),
             Segment_Type.customer: (
-                SegmentsCustomer, SegmentsCustomerDetail, get_customer_segment_by_name, create_segment_customer),
+                SegmentsCustomer, SegmentsCustomerDetail, create_segment_customer),
             Segment_Type.location: (
-                SegmentsLocation, SegmentsLocationDetail, get_location_segment_by_name, create_segment_location)
+                SegmentsLocation, SegmentsLocationDetail, create_segment_location)
         }
 
         if segment_type not in segment_classes:
             return {'code': 305, "msg": "Invalid segment type."}
 
-        SegmentClass, DetailClass, get_segment_by_name_func, create_segment_func = segment_classes[segment_type]
+        SegmentClass, DetailClass, create_segment_func = segment_classes[segment_type]
 
         if segment_id:
             delete_detail_func_map = {
@@ -301,9 +301,9 @@ async def upload_segment(segment_type: Segment_Type, name: str, description: str
                 segment_status='active',
                 create_type='import'
             )
-            existing_segment = await get_segment_by_name_func(session, name=segment.name)
-            if existing_segment:
-                return {'code': 300, "msg": f"{segment_type.value.capitalize()} segment with this name already exists."}
+            # existing_segment = await get_segment_by_name_func(session, name=segment.name)
+            # if existing_segment:
+            #     return {'code': 300, "msg": f"{segment_type.value.capitalize()} segment with this name already exists."}
             insert_segment = await create_segment_func(session, segment, user_id)
             insert_segment_id = insert_segment.segment_id
 
@@ -433,9 +433,9 @@ async def submit_segments(
                 await delete_segment_item_condition(session, item_segment.segment_id)
                 insert_segment_id = item_segment.segment_id
             else:
-                existing_segment = await get_item_segment_by_name(session, name=item_segment.name, org_id=org_id)
-                if existing_segment:
-                    return {'code': 300, "msg": get_message("segment_name_exists", lang)}
+                # existing_segment = await get_item_segment_by_name(session, name=item_segment.name, org_id=org_id)
+                # if existing_segment:
+                #     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
                 insert_segment = await create_segment_item(session, item_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
 
@@ -447,10 +447,10 @@ async def submit_segments(
                 await update_segment_location(session, location_segment.segment_id, location_segment)
                 await delete_segment_location_condition(session, location_segment.segment_id)
             else:
-                existing_segment = await get_location_segment_by_name(session, name=location_segment.name,
-                                                                      org_id=org_id)
-                if existing_segment:
-                    return {'code': 300, "msg": get_message("segment_name_exists", lang)}
+                # existing_segment = await get_location_segment_by_name(session, name=location_segment.name,
+                #                                                       org_id=org_id)
+                # if existing_segment:
+                #     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
                 insert_segment = await create_segment_location(session, location_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
             await create_segment_location_condition(session, insert_segment_id, segment.segment_condition)
@@ -461,10 +461,10 @@ async def submit_segments(
                 await update_segment_customer(session, customer_segment.segment_id, customer_segment)
                 await delete_segment_customer_condition(session, customer_segment.segment_id)
             else:
-                existing_segment = await get_customer_segment_by_name(session, name=customer_segment.name,
-                                                                      org_id=org_id)
-                if existing_segment:
-                    return {'code': 300, "msg": get_message("segment_name_exists", lang)}
+                # existing_segment = await get_customer_segment_by_name(session, name=customer_segment.name,
+                #                                                       org_id=org_id)
+                # if existing_segment:
+                #     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
                 insert_segment = await create_segment_customer(session, customer_segment, user_id, org_id)
                 insert_segment_id = insert_segment.segment_id
             await create_segment_customer_condition(session, insert_segment_id, segment.segment_condition)

@@ -73,7 +73,7 @@ def init_system_data(session: Session):
         for index, org in enumerate(organizations, start=1):
             org_id = org.get('org_id')
             if org_id:
-                segment_id = 50000 + index
+                segment_id = 41000 + index
                 segment_org_pairs.append({
                     'segment_id': segment_id,
                     'org_id': org_id
@@ -82,7 +82,7 @@ def init_system_data(session: Session):
         app_logger.info(f"Loaded {len(segment_org_pairs)} segment-org pairs from organization config")
 
         for pair in segment_org_pairs:
-            existing_record = session.query(SegmentsItem).filter(SegmentsItem.segment_id == pair['segment_id']).first()
+            existing_record = session.query(SegmentsItem).filter(SegmentsItem.description == f'ALL ITEM ({pair["org_id"]})').first()
 
             if not existing_record:
                 segments_item = SegmentsItem(
