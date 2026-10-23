@@ -635,11 +635,16 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
         app_logger.warning(f"Commission pattern not found for id: {commission_pattern_id}")
         return data_detail
 
+    is_ns = result_data.get('category_code') == 'NS'
+
+    app_logger.info(f"Processing commission pattern data for id: {commission_pattern_id}, is_ns: {is_ns}")
+
     COM_CODE_VALUE = []
     if result_data.get('p_value') is not None:
+
         com_value_p = {
             **commission_mapping["COM_CODE_VALUE_P"],
-            "code": result_data.get('category_code'),
+            "code": result_data.get('brand_code') if is_ns else result_data.get('category_code'),
             "property_code": 'P',
             "decimal_value": float(result_data.get('p_value'))
         }
@@ -648,7 +653,7 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
     if result_data.get('s_value') is not None:
         com_value_s = {
             **commission_mapping["COM_CODE_VALUE_P"],
-            "code": result_data.get('category_code'),
+            "code": result_data.get('brand_code') if is_ns else result_data.get('category_code'),
             "property_code": 'B',
             "decimal_value": float(result_data.get('s_value'))
         }
@@ -669,14 +674,23 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
     data_detail.append(
         {'table': 'COM_CODE_VALUE', 'table_key': ['organization_id', 'category', 'code'],
          "action": "INSERT_AND_UPDATE",
-         "data": [{**commission_mapping["COM_CODE_VALUE"], "code": result_data.get('category_code'),
-                   "description": result_data.get('category_name')}]})
+         "data": [{**commission_mapping["COM_CODE_VALUE"], "code": result_data.get('brand_code') if is_ns else result_data.get('category_code'),
+                   "description": 'NS' if is_ns else result_data.get('category_name')}]})
 
-    data_detail.append(
-        {'table': 'COM_TRANS_PROMPT_PROPERTIES', 'table_key': ['organization_id', 'trans_prompt_property_code'],
-         "action": "INSERT_AND_UPDATE",
-         "data": [{**commission_mapping["COM_TRANS_PROMPT_PROPERTIES"],
-                   "trans_prompt_property_code": "SAM_COMMISSIONPATTERN"}]})
+    if is_ns:
+        data_detail.append(
+            {'table': 'COM_CODE_VALUE', 'table_key': ['organization_id', 'category', 'code'],
+             "action": "INSERT_AND_UPDATE",
+             "data": [{**commission_mapping["COM_CODE_VALUE"],
+                       "category": "ITEM_DIVISION_CODE",
+                       "code": result_data.get('brand_code'),
+                       "description": result_data.get('brand_name')}]})
+
+    # data_detail.append(
+    #     {'table': 'COM_TRANS_PROMPT_PROPERTIES', 'table_key': ['organization_id', 'trans_prompt_property_code'],
+    #      "action": "INSERT_AND_UPDATE",
+    #      "data": [{**commission_mapping["COM_TRANS_PROMPT_PROPERTIES"],
+    #                "trans_prompt_property_code": "SAM_COMMISSIONPATTERN"}]})
 
     # data_detail.append(
     #     {'table': 'COM_TRANSLATIONS', 'table_key': ['organization_id', 'locale', 'translation_key'],

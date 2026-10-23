@@ -106,10 +106,10 @@ async def upload_segment_v2(submit: Union[dict, str, None] = Body(None),
                 public=0,
                 create_type='import'
             )
-            existing_segment = await get_segment_by_name_func(session, name=name)
-            app_logger.debug(f"Existing segment: {existing_segment}")
-            if existing_segment:
-                return {'code': 300, "msg": get_message("segment_name_exists", lang)}
+            # existing_segment = await get_segment_by_name_func(session, name=name)
+            # app_logger.debug(f"Existing segment: {existing_segment}")
+            # if existing_segment:
+            #     return {'code': 300, "msg": get_message("segment_name_exists", lang)}
             insert_segment = await create_segment_func(session, segment, user_id, org_id)
             app_logger.info(f"Inserted segment: {insert_segment}")
             insert_segment_id = insert_segment.segment_id
