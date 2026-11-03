@@ -686,9 +686,10 @@ async def get_org_hierarchy(session: Session, org_id=None):
 
 
 class OrgNode:
-    def __init__(self, org_code, org_value):
+    def __init__(self, org_code, org_value, description=None):
         self.org_code = org_code
         self.org_value = org_value
+        self.description = description or ""
         self.children = []
         self.has_permission = False
 
@@ -696,17 +697,18 @@ class OrgNode:
         return {
             "org_code": self.org_code,
             "org_value": self.org_value,
+            "description": self.description,
             "children": [child.dict() for child in self.children if self.children],
             "has_permission": self.has_permission
         }
 
-
 def build_generic_tree(all_nodes, node_factory=None, org_id=None):
     if node_factory is None:
-        def default_node_factory(org_code, org_value):
+        def default_node_factory(org_code, org_value, description=None):
             return {
                 "title": f"{org_code}:{org_value}",
                 "value": f"{org_code}:{org_value}",
+                "description": description or "",
                 "children": []
             }
 
@@ -717,7 +719,7 @@ def build_generic_tree(all_nodes, node_factory=None, org_id=None):
     for node in all_nodes:
         key = (node["org_code"], node["org_value"])
         if key not in node_map:
-            node_map[key] = node_factory(node["org_code"], node["org_value"])
+            node_map[key] = node_factory(node["org_code"], node["org_value"], node.get("description"))
 
     app_logger.debug(f"Created {len(node_map)} unique nodes from {len(all_nodes)} input nodes")
 
@@ -764,6 +766,7 @@ def mark_permissions_downward(node, permissions):
             mark_permissions_downward(child, permissions)
 
 
+
 def convert_to_tree_data_with_permission(nodes):
     def recursive_convert(node):
         node_title = f"{node.org_code}:{node.org_value}"
@@ -777,6 +780,7 @@ def convert_to_tree_data_with_permission(nodes):
         return {
             "title": node_title,
             "value": node_value,
+            "description": getattr(node, 'description', ""),
             "has_permission": getattr(node, 'has_permission', False),
             "children": children if children else None
         }
@@ -842,6 +846,7 @@ async def get_max_permission_nodes(session: Session, user_code: str, org_id: str
             {
                 "org_code": node.ORG_CODE,
                 "org_value": node.ORG_VALUE,
+                "description": node.DESCRIPTION or "",
                 "parent_code": node.PARENT_CODE or "",
                 "parent_value": node.PARENT_VALUE or ""
             }
@@ -849,7 +854,7 @@ async def get_max_permission_nodes(session: Session, user_code: str, org_id: str
         ]
         app_logger.debug(f"Converted {len(flat_data)} nodes to flat data structure")
 
-        tree_roots = build_generic_tree(flat_data, lambda code, value: OrgNode(code, value), org_id)
+        tree_roots = build_generic_tree(flat_data, lambda code, value, desc=None: OrgNode(code, value, desc), org_id)
         app_logger.debug(f"Built {len(tree_roots)} tree roots")
 
         # if org_id:

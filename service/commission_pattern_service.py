@@ -675,7 +675,7 @@ async def process_commission_pattern_data(commission_pattern_id: int, session, l
         {'table': 'COM_CODE_VALUE', 'table_key': ['organization_id', 'category', 'code'],
          "action": "INSERT_AND_UPDATE",
          "data": [{**commission_mapping["COM_CODE_VALUE"], "code": result_data.get('brand_code') if is_ns else result_data.get('category_code'),
-                   "description": 'NS' if is_ns else result_data.get('category_name')}]})
+                   "description": 'NS' if is_ns else result_data.get('category_name'), "hidden_flag": 0 if status == 'active' else 1}]})
 
     if is_ns:
         data_detail.append(
