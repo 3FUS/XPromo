@@ -1,0 +1,271 @@
+
+labels:
+  task_id:
+    en: "Task ID"
+    zh: "任务ID"
+    jp: "タスクID"
+    zh_tw: "任務ID"
+  batch_no:
+    en: "Batch No"
+    zh: "盘点任务号"
+    jp: "バッチ番号"
+    zh_tw: "任务號"
+  store_code:
+    en: "Store Code"
+    zh: "门店代码"
+    jp: "店舗コード"
+    zh_tw: "門店代碼"
+  store_name:
+    en: "Store Name"
+    zh: "门店名称"
+    jp: "店舗名"
+    zh_tw: "門店名稱"
+  inventory_date:
+    en: "Inventory Date"
+    zh: "盘点日期"
+    jp: "棚卸日"
+    zh_tw: "盤點日期"
+  inventory_method:
+    en: "Inventory Method"
+    zh: "盘点方式"
+    jp: "棚卸方法"
+    zh_tw: "盤點方式"
+  inventory_type:
+    en: "Inventory Type"
+    zh: "盘点类型"
+    jp: "棚卸タイプ"
+    zh_tw: "盤點類型"
+  status:
+    en: "Status"
+    zh: "状态"
+    jp: "ステータス"
+    zh_tw: "狀態"
+  frozen_qty:
+    en: "Frozen Qty"
+    zh: "冻结数量"
+    jp: "凍結数量"
+    zh_tw: "凍結數量"
+  Inventory_qty:
+    en: "Inventory Qty"
+    zh: "盘点数量"
+    jp: "棚卸数量"
+    zh_tw: "盤點數量"
+  difference_qty:
+    en: "Difference Qty"
+    zh: "差异数量"
+    jp: "差異数量"
+    zh_tw: "差異數量"
+  difference_date:
+    en: "Difference Date"
+    zh: "差异日期"
+    jp: "差異日"
+    zh_tw: "差異日期"
+  export_count:
+    en: "Export Count"
+    zh: "导出次数"
+    jp: "エクスポート回数"
+    zh_tw: "匯出次數"
+  confirm_user:
+    en: "Confirm User"
+    zh: "确认人"
+    jp: "確認者"
+    zh_tw: "確認人"
+  confirm_time:
+    en: "Confirm Time"
+    zh: "确认时间"
+    jp: "確認日時"
+    zh_tw: "確認時間"
+  remark:
+    en: "Remark"
+    zh: "备注"
+    jp: "備考"
+    zh_tw: "備註"
+  create_user:
+    en: "Create User"
+    zh: "创建人"
+    jp: "作成者"
+    zh_tw: "建立人"
+  create_time:
+    en: "Create Time"
+    zh: "创建时间"
+    jp: "作成日時"
+    zh_tw: "建立時間"
+  update_user:
+    en: "Update User"
+    zh: "更新人"
+    jp: "更新者"
+    zh_tw: "更新人"
+  update_time:
+    en: "Update Time"
+    zh: "更新时间"
+    jp: "更新日時"
+    zh_tw: "更新時間"
+  business_owner:
+    en: "Business Owner"
+    zh: "业务负责人"
+    jp: "業務担当者"
+    zh_tw: "業務負責人"
+  order_no:
+    en: "Order No"
+    zh: "盘点单号"
+    jp: "棚卸伝票番号"
+    zh_tw: "盤點單號"
+  zone_code:
+    en: "Zone Code"
+    zh: "货位代码"
+    jp: "ゾーンコード"
+    zh_tw: "貨位代碼"
+  item_id:
+    en: "Item ID"
+    zh: "商品ID"
+    jp: "商品ID"
+    zh_tw: "商品ID"
+  upc:
+    en: "SKU"
+    zh: "SKU"
+    jp: "SKU"
+    zh_tw: "SKU"
+  price:
+    en: "Price"
+    zh: "价格"
+    jp: "価格"
+    zh_tw: "價格"
+  inventory_qty:
+    en: "Inventory Qty"
+    zh: "盘点数量"
+    jp: "棚卸数量"
+    zh_tw: "盤點數量"
+  amount:
+    en: "Amount"
+    zh: "金额"
+    jp: "金額"
+    zh_tw: "金額"
+  name:
+    en: "Item Name"
+    zh: "商品名称"
+    jp: "商品名"
+    zh_tw: "商品名稱"
+  description:
+    en: "Description"
+    zh: "商品描述"
+    jp: "説明"
+    zh_tw: "商品描述"
+  color:
+    en: "Color"
+    zh: "颜色"
+    jp: "カラー"
+    zh_tw: "顏色"
+  is_red:
+    en: "Order Type"
+    zh: "盘点单类型"
+    jp: "伝票タイプ"
+    zh_tw: "盤點單類型"
+  item_count:
+    en: "Item Count"
+    zh: "商品数量"
+    jp: "商品点数"
+    zh_tw: "商品數量"
+  order_count:
+    en: "Order Count"
+    zh: "盘点单数"
+    jp: "伝票数"
+    zh_tw: "盤點單數"
+  material:
+    en: "Material"
+    zh: "材质"
+    jp: "素材"
+    zh_tw: "材質"
+  grid:
+    en: "Grid"
+    zh: "规格"
+    jp: "規格"
+    zh_tw: "規格"
+  difference_amt:
+    en: "Difference Amount"
+    zh: "差异金额"
+    jp: "差異金額"
+    zh_tw: "差異金額"
+  diff_category:
+    en: "Difference Category"
+    zh: "差异分类"
+    jp: "差異分類"
+    zh_tw: "差異分類"
+
+value_labels:
+  inventory_method:
+    self:
+      en: "Store Count"
+      zh: "店铺盘点"
+      jp: "店舗棚卸"
+      zh_tw: "店鋪盤點"
+    external:
+      en: "External Count"
+      zh: "外部盘点公司"
+      jp: "外部棚卸会社"
+      zh_tw: "外部盤點公司"
+  inventory_type:
+    full:
+      en: "Full Count"
+      zh: "全盘"
+      jp: "全棚卸"
+      zh_tw: "全盤"
+    partial:
+      en: "Partial Count"
+      zh: "抽盘"
+      jp: "抜取棚卸"
+      zh_tw: "抽盤"
+
+tables:
+  inventory_task_list:
+    - batch_no
+    - store_code
+    - store_name
+    - inventory_date
+    - inventory_method
+#    - inventory_type
+    - frozen_qty
+    - Inventory_qty
+    - difference_qty
+#    - difference_date
+    - business_owner
+    - export_count
+    - status
+    - create_user
+    - confirm_user
+    - confirm_time
+
+
+  inventory_order_list:
+    - batch_no
+    - store_code
+    - store_name
+    - inventory_date
+    - order_count
+    - item_count
+    - inventory_qty
+    - status
+    - create_user
+    - create_time
+
+
+  inventory_item_list:
+    - upc
+    - name
+    - material
+    - grid
+    - color
+    - price
+    - inventory_qty
+
+  difference_detail_list:
+    - upc
+    - name
+    - material
+    - grid
+    - color
+    - price
+    - frozen_qty
+    - Inventory_qty
+    - difference_qty
+    - difference_amt
+#    - diff_category
