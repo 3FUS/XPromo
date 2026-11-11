@@ -2,7 +2,7 @@ from sqlalchemy import or_, and_
 from sqlalchemy import func, literal, TypeDecorator
 from sqlalchemy.types import CHAR, String
 from models.model import SysMenu, SysRole, SysUser, SysUserRole, SysRoleMenuPermission, SysMenuPermission, \
-    LOC_ORG_HIERARCHY, SysRoleOrgPermission
+    LOC_ORG_HIERARCHY, SysRoleOrgPermission,SysUserRoleINV,SysRoleMenuPermissionINV
 
 import bcrypt
 from datetime import datetime
@@ -148,9 +148,13 @@ async def delete_user_by_code(session: Session, user_code: str):
     return False
 
 
-async def delete_role_by_code(session: Session, role_code: str):
-    session.query(SysUserRole).filter(SysUserRole.role_code == role_code).delete(synchronize_session=False)
-    role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
+async def delete_role_by_code(session: Session, role_code: str, system_code: str = None):
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
+    session.query(UserRoleModel).filter(UserRoleModel.role_code == role_code).delete(synchronize_session=False)
+    query = session.query(SysRole).filter(SysRole.role_code == role_code)
+    if system_code is not None:
+        query = query.filter(SysRole.system_code == system_code)
+    role = query.first()
     if role:
         session.delete(role)
         session.commit()
@@ -158,25 +162,28 @@ async def delete_role_by_code(session: Session, role_code: str):
     return False
 
 
-async def fetch_user_list(session: Session, key_word: str, pageNo: int = 1, pageSize: int = 20):
+async def fetch_user_list(session: Session, key_word: str, system_code: str, pageNo: int = 1, pageSize: int = 20):
     try:
+        UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
         app_logger.info(
             f"Starting to fetch user list with parameters: key_word={key_word}, pageNo={pageNo}, pageSize={pageSize}")
+
+        role_filter_query = session.query(SysRole.role_code).filter(SysRole.role_status == 'active')
+        if system_code is not None:
+            role_filter_query = role_filter_query.filter(SysRole.system_code == system_code)
 
         query = session.query(
             SysUser.user_code,
             SysUser.user_name,
-            func.string_agg(SysUserRole.role_code, literal(',', type_=FixedChar(1))).label('role_codes'),
+            func.string_agg(UserRoleModel.role_code, literal(',', type_=FixedChar(1))).label('role_codes'),
             SysUser.user_email,
             SysUser.create_time,
             SysUser.user_status
         ).outerjoin(
-            SysUserRole,
+            UserRoleModel,
             and_(
-                SysUser.user_code == SysUserRole.user_code,
-                SysUserRole.role_code.in_(
-                    session.query(SysRole.role_code).filter(SysRole.role_status == 'active')
-                )
+                SysUser.user_code == UserRoleModel.user_code,
+                UserRoleModel.role_code.in_(role_filter_query)
             )
         ).group_by(
             SysUser.user_code,
@@ -271,6 +278,7 @@ async def create_sys_role(session: Session, role):
         org_id=role.org_id,
         role_status=role.role_status,
         role_description=role.role_description,
+        system_code=role.system_code,
         create_time=datetime.now(),
         create_user=role.create_user
     )
@@ -280,8 +288,9 @@ async def create_sys_role(session: Session, role):
     return new_role
 
 
-async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1, pageSize: int = 20):
+async def fetch_role_list(session: Session, key_word: str = '', system_code: str = None, pageNo: int = 1, pageSize: int = 20):
     try:
+        UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
         app_logger.info(
             f"Starting to fetch role list with parameters: key_word={key_word}, pageNo={pageNo}, pageSize={pageSize}")
 
@@ -291,18 +300,19 @@ async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1,
             SysRole.role_code,
             SysRole.role_description,
             SysRole.role_status,
+            SysRole.system_code,
             SysRole.create_time,
-            func.count(SysUserRole.user_code).label('user_count')
-        ).outerjoin(SysUserRole, SysRole.role_code == SysUserRole.role_code) \
+            func.count(UserRoleModel.user_code).label('user_count')
+        ).outerjoin(UserRoleModel, SysRole.role_code == UserRoleModel.role_code) \
             .group_by(
             SysRole.org_id,
             SysRole.role_code,
             SysRole.role_description,
             SysRole.role_status,
+            SysRole.system_code,
             SysRole.create_time
         )
 
-        # 添加关键词搜索条件
         if key_word:
             key_word = f"%{key_word}%"
             query = query.filter(
@@ -310,8 +320,11 @@ async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1,
                 (SysRole.role_description.like(key_word))
             )
 
-        # 排序和分页
+        if system_code:
+            query = query.filter(SysRole.system_code == system_code)
+
         query = query.order_by(SysRole.create_time.desc())
+
         total = query.count()
         app_logger.debug(f"Total roles matching criteria: {total}")
 
@@ -348,13 +361,19 @@ async def fetch_role_list(session: Session, key_word: str = '', pageNo: int = 1,
         raise Exception(f"Failed to fetch role list: {str(e)}")
 
 
-async def get_role_by_code(session: Session, role_code: str):
-    role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
+async def get_role_by_code(session: Session, role_code: str,system_code:str=None):
+    query = session.query(SysRole).filter(SysRole.role_code == role_code)
+    if system_code is not None:
+        query = query.filter(SysRole.system_code == system_code)
+    role = query.first()
     return role
 
 
-async def update_sys_role(session: Session, role_code: str, role):
-    updated_role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
+async def update_sys_role(session: Session, role_code: str, role,system_code:str=None):
+    query = session.query(SysRole).filter(SysRole.role_code == role_code)
+    if system_code is not None:
+        query = query.filter(SysRole.system_code == system_code)
+    updated_role = query.first()
     if updated_role:
         updated_role.role_status = role.role_status
         updated_role.org_id = role.org_id
@@ -365,17 +384,23 @@ async def update_sys_role(session: Session, role_code: str, role):
         session.refresh(updated_role)
     return updated_role
 
-
-async def create_sys_user_role(session: Session, user_roles, user_code):
-    query = session.query(SysUserRole)
+async def create_sys_user_role(session: Session, user_roles, user_code,system_code='XPRMO'):
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
+    query = session.query(UserRoleModel)
     if user_code is not None:
-        query = query.filter(SysUserRole.user_code == user_code)
+        query = query.filter(UserRoleModel.user_code == user_code)
+        if system_code is not None:
+            query = query.filter(
+                UserRoleModel.role_code.in_(
+                    session.query(SysRole.role_code).filter(SysRole.system_code == system_code)
+                )
+            )
         deleted_count = query.delete(synchronize_session=False)
         # session.commit()
 
     created_details = []
     for role in user_roles:
-        new_user_role = SysUserRole(
+        new_user_role = UserRoleModel(
             user_code=user_code,
             role_code=role.role_code,
             create_time=datetime.now()
@@ -388,8 +413,9 @@ async def create_sys_user_role(session: Session, user_roles, user_code):
     return created_details
 
 
-async def get_role_by_user_code(session: Session, user_code: str):
-    role = session.query(SysUserRole).filter(SysUserRole.user_code == user_code).all()
+async def get_role_by_user_code(session: Session, user_code: str, system_code: str='XPRMO'):
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
+    role = session.query(UserRoleModel).filter(UserRoleModel.user_code == user_code).all()
     return role
 
 
@@ -411,11 +437,12 @@ async def update_role_status(session, role_code, role_status):
     return updated_role
 
 
-async def get_org_id_by_user_code(session: Session, user_code: str):
+async def get_org_id_by_user_code(session: Session, user_code: str, system_code: str='XPRMO'):
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
     query = session.query(SysRole.org_id).join(
-        SysUserRole, SysRole.role_code == SysUserRole.role_code
+        UserRoleModel, SysRole.role_code == UserRoleModel.role_code
     ).filter(
-        SysUserRole.user_code == user_code,
+        UserRoleModel.user_code == user_code,
         SysRole.role_status == 'active'
     )
 
@@ -427,9 +454,9 @@ async def get_org_id_by_user_code(session: Session, user_code: str):
     return result
 
 
-async def get_user_organizations(session: Session, user_code: str, org_config: dict):
+async def get_user_organizations(session: Session, user_code: str, org_config: dict,system_code:str='XPRMO'):
     # 获取用户关联的组织IDs
-    org_ids = await get_org_id_by_user_code(session, user_code)
+    org_ids = await get_org_id_by_user_code(session, user_code,system_code)
 
     # 从配置中获取所有组织信息
     organizations = org_config.get('organizations', [])
@@ -455,16 +482,24 @@ async def get_user_organizations(session: Session, user_code: str, org_config: d
     return result
 
 
-async def get_permissions_with_user(session: Session, user_code: str):
+async def get_permissions_with_user(session: Session, user_code: str, system_code: str='XPRMO'):
     # 获取用户的所有角色
-    user_roles = session.query(SysUserRole.role_code).join(
-        SysRole, SysRole.role_code == SysUserRole.role_code
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
+    RoleMenuPermModel = SysRoleMenuPermissionINV if system_code == 'INV' else SysRoleMenuPermission
+
+    app_logger.info(f"Starting to fetch permissions for user_code={user_code}, system_code={system_code}")
+
+    # 获取用户的所有角色
+    user_roles = session.query(UserRoleModel.role_code).join(
+        SysRole, SysRole.role_code == UserRoleModel.role_code
     ).filter(
-        SysUserRole.user_code == user_code,
-        SysRole.role_status == 'active'
+        UserRoleModel.user_code == user_code,
+        SysRole.role_status == 'active',
+        SysRole.system_code == system_code
     ).all()
     if not user_roles:
         raise ValueError("User has no roles assigned")
+
 
     role_codes = [ur.role_code for ur in user_roles]
 
@@ -472,8 +507,8 @@ async def get_permissions_with_user(session: Session, user_code: str):
     menus = session.query(SysMenu).all()
 
     role_permissions = (
-        session.query(SysRoleMenuPermission.menu_code, SysRoleMenuPermission.permission_type)
-            .filter(SysRoleMenuPermission.role_code.in_(role_codes))
+        session.query(RoleMenuPermModel.menu_code, RoleMenuPermModel.permission_type)
+            .filter(RoleMenuPermModel.role_code.in_(role_codes))
             .all()
     )
 
@@ -506,25 +541,41 @@ async def get_permissions_with_user(session: Session, user_code: str):
     return result_menus
 
 
-async def get_permissions_with_role(session: Session, role_code: str):
+async def get_permissions_with_role(session: Session, role_code: str, system_code: str = None):
+    RoleMenuPermModel = SysRoleMenuPermissionINV if system_code == 'INV' else SysRoleMenuPermission
     role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
     if not role:
         role_code = None
 
-    menus = session.query(SysMenu).all()
+    # 查询菜单，根据 system_code 过滤
+    menus_query = session.query(SysMenu)
+    if system_code is not None:
+        menus_query = menus_query.filter(SysMenu.system_code == system_code)
+    menus = menus_query.order_by(SysMenu.sort_order).all()
 
     # 获取菜单支持的所有权限（来自 sys_menu_permission）
-    menu_perm_query = session.query(SysMenuPermission).all()
+    menu_perm_query = session.query(SysMenuPermission)
+    if system_code is not None:
+        menu_perm_query = menu_perm_query.filter(
+            SysMenuPermission.menu_code.in_([m.menu_code for m in menus])
+        )
+    menu_perm_results = menu_perm_query.all()
+
     permission_template = {}
-    for perm in menu_perm_query:
+    for perm in menu_perm_results:
         if perm.menu_code not in permission_template:
             permission_template[perm.menu_code] = set()
         permission_template[perm.menu_code].add(perm.permission_type)
 
     # 查询角色已配置的权限（来自 sys_role_menu_permission）
-    role_permissions = session.query(SysRoleMenuPermission).filter(
-        SysRoleMenuPermission.role_code == role_code
-    ).all()
+    role_perm_query = session.query(RoleMenuPermModel).filter(
+        RoleMenuPermModel.role_code == role_code
+    )
+    if system_code is not None:
+        role_perm_query = role_perm_query.filter(
+            RoleMenuPermModel.menu_code.in_([m.menu_code for m in menus])
+        )
+    role_permissions = role_perm_query.all()
 
     # 构建权限映射
     role_perm_map = {}
@@ -560,7 +611,8 @@ async def get_permissions_with_role(session: Session, role_code: str):
     }
 
 
-async def batch_update_role_permissions(session: Session, role_code: str, menu_permissions: dict):
+async def batch_update_role_permissions(session: Session, role_code: str, menu_permissions: dict,system_code: str = 'XPRMO'):
+    RoleMenuPermModel = SysRoleMenuPermissionINV if system_code == 'INV' else SysRoleMenuPermission
     role = session.query(SysRole).filter(SysRole.role_code == role_code).first()
     if not role:
         raise ValueError("Role not found")
@@ -568,13 +620,13 @@ async def batch_update_role_permissions(session: Session, role_code: str, menu_p
     try:
         with session.begin_nested():  # 或者使用 session.begin() 如果没有嵌套事务需求
             # 删除现有权限
-            session.query(SysRoleMenuPermission).filter(SysRoleMenuPermission.role_code == role_code).delete()
+            session.query(RoleMenuPermModel).filter(RoleMenuPermModel.role_code == role_code).delete()
             for item in menu_permissions:
                 menu_code = item.get('menu_code')
                 permissions = item.get('permissions', [])
                 for permission_type, is_checked in permissions.items():
                     if is_checked:
-                        new_permission = SysRoleMenuPermission(
+                        new_permission = RoleMenuPermModel(
                             role_code=role_code,
                             menu_code=menu_code,
                             permission_type=permission_type,
@@ -804,15 +856,20 @@ def filter_permission_nodes(node):
     return node.has_permission or len(valid_children) > 0
 
 
-async def get_max_permission_nodes(session: Session, user_code: str, org_id: str = None):
+async def get_max_permission_nodes(session: Session, user_code: str, system_code: str = None, org_id: str = None):
+    UserRoleModel = SysUserRoleINV if system_code == 'INV' else SysUserRole
     app_logger.info(f"Starting to get max permission nodes for role_code: {user_code}")
 
-    user_roles = session.query(SysUserRole.role_code).join(
-        SysRole, SysRole.role_code == SysUserRole.role_code
+    user_roles = session.query(UserRoleModel.role_code).join(
+        SysRole, SysRole.role_code == UserRoleModel.role_code
     ).filter(
-        SysUserRole.user_code == user_code,
+        UserRoleModel.user_code == user_code,
         SysRole.role_status == 'active'
-    ).all()
+    )
+    if system_code is not None:
+        user_roles = user_roles.filter(SysRole.system_code == system_code)
+    user_roles = user_roles.all()
+
     if not user_roles:
         raise ValueError("User has no roles assigned")
 

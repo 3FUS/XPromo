@@ -19,20 +19,20 @@ from service.access_service import create_sys_user, create_sys_role, fetch_user_
 
 
 @router.get("/user/user_list", tags=["user"], description='获取用户列表')
-async def get_user_list(key_word: str = None, page: int = 1, page_size: int = 20,
+async def get_user_list(key_word: str = None, system_code: str = 'XPRMO',page: int = 1, page_size: int = 20,
                         session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
         return {"code": 200, "msg": "get user list successfully",
-                "data": await fetch_user_list(session, key_word, page, page_size)}
+                "data": await fetch_user_list(session, key_word,system_code, page, page_size)}
     except Exception as e:
         return {"code": 301, "msg": f"获取用户列表失败{repr(e)}"}
 
 
 @router.get("/user/role_list", tags=["user"], description='获取角色列表')
-async def get_role_list(key_word: str, page: int = 1, page_size: int = 20,
+async def get_role_list(key_word: str = None, system_code: str = 'XPRMO', page: int = 1, page_size: int = 20,
                         session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
-        return {"code": 200, "msg": "获取角色列表成功", "data": await fetch_role_list(session, key_word, page, page_size)}
+        return {"code": 200, "msg": "获取角色列表成功", "data": await fetch_role_list(session, key_word,system_code, page, page_size)}
     except Exception as e:
         return {"code": 301, "msg": "获取角色列表失败"}
 
@@ -54,7 +54,7 @@ async def submit_user(user: SysUserSubmit, session=Depends(get_db), lang: str = 
                 await create_sys_user(session, user)
                 msg = "create successfully"
             if user.role_code:
-                await create_sys_user_role(session, user.role_code, user.user_code)
+                await create_sys_user_role(session, user.role_code, user.user_code,user.system_code)
         return {"code": 200, "msg": msg}
     except Exception as e:
         return {"code": 301, "msg": f"submit error {repr(e)}"}
@@ -92,15 +92,15 @@ async def reset_password(
 async def submit_role(role: SysRoleSubmit, session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
         if role.role_code:
-            if await get_role_by_code(session, role.role_code):
+            if await get_role_by_code(session, role.role_code, role.system_code):
                 if role.submit_type == "edit":
-                    await update_sys_role(session, role.role_code, role)
+                    await update_sys_role(session, role.role_code, role, role.system_code)
                 else:
                     return {"code": 301, "msg": "角色已存在"}
             else:
                 await create_sys_role(session, role)
             if role.data:
-                await batch_update_role_permissions(session, role.role_code, role.data)
+                await batch_update_role_permissions(session, role.role_code, role.data, role.system_code)
             if role.org_data:
                 await batch_update_role_org_permissions(session, role.role_code, role.org_data)
 
@@ -120,18 +120,18 @@ async def delete_user(user_code: str, session=Depends(get_db), user_id=Depends(g
 
 
 @router.delete("/user/delete_role", tags=["user"], description='删除角色')
-async def delete_role(role_code: str, session=Depends(get_db), user_id=Depends(get_current_user)):
+async def delete_role(role_code: str, system_code: str='XPRMO', session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
-        await delete_role_by_code(session, role_code)
+        await delete_role_by_code(session, role_code,system_code)
         return {"code": 200, "msg": "delete successfully"}
     except Exception as e:
         return {"code": 301, "msg": f"delete error {repr(e)}"}
 
 
 @router.get("/user/role_by_user_code", tags=["user"], description='获取用户的角色')
-async def role_by_user_code(user_code: str, session=Depends(get_db), user_id=Depends(get_current_user)):
+async def role_by_user_code(user_code: str,system_code: str='XPRMO', session=Depends(get_db), user_id=Depends(get_current_user)):
     try:
-        data = await get_role_by_user_code(session, user_code)
+        data = await get_role_by_user_code(session, user_code,system_code)
 
         return {"code": 200, "msg": "get role by user code successfully", "data": data}
     except Exception as e:
@@ -165,24 +165,24 @@ async def set_role_status(
 
 
 @router.get("/user/role_permissions/", tags=["user"])
-async def get_role_hierarchical_permissions(role_code: str = '', session=Depends(get_db),
+async def get_role_hierarchical_permissions(role_code: str = '', system_code: str = 'XPRMO', session=Depends(get_db),
                                             user_id=Depends(get_current_user)):
     try:
-        return await get_permissions_with_role(session, role_code)
+        return await get_permissions_with_role(session, role_code,system_code)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/user/user_permissions/", tags=["user"])
-async def get_user_hierarchical_permissions(user_code: str, session=Depends(get_db),
+async def get_user_hierarchical_permissions(user_code: str,system_code: str = 'XPRMO', session=Depends(get_db),
                                             org_id: str = Query(None, description="ORG ID"),
                                             lang: str = Query("en"),
                                             user_id=Depends(get_current_user)):
     try:
-        result_menus = await get_permissions_with_user(session, user_code)
+        result_menus = await get_permissions_with_user(session, user_code,system_code)
         if result_menus is None:
             return {"code": 301, "msg": get_message("user_no_permission", lang)}
-        result_org = await get_max_permission_nodes(session, user_code, org_id)
+        result_org = await get_max_permission_nodes(session, user_code, system_code,org_id)
         return {
             "code": 200,
             "user_code": user_code,
@@ -207,13 +207,14 @@ async def get_org_hierarchy_tree(org_id: str = Query(None, description="ORG ID")
 @router.get("/user/org_id_by_current_user", tags=["user"])
 async def get_org_id_by_user(
         lang: str = Query("en", description="语言: 'en' 英文, 'zh' 简体中文"),
+        system_code: str = Query("XPRMO", description="系统代码"),
         session=Depends(get_db),
         user_id=Depends(get_current_user)):
     try:
         org_config = app_config.org_config
 
         # 获取用户组织信息
-        user_orgs = await get_user_organizations(session, user_id, org_config)
+        user_orgs = await get_user_organizations(session, user_id, org_config,system_code)
 
         # 根据语言偏好处理返回数据
         processed_orgs = []
