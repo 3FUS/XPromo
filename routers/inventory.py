@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Depends, UploadFile, File
 from typing import Optional
 import pandas as pd
 import io
+from datetime import datetime
 
 from service import get_db
 from service.inventory_service import (
@@ -114,6 +115,20 @@ async def upload_inventory_items_api(
         if not org_id:
             return {"code": 400, "msg": get_message("please_provide_org_id", lang)}
 
+        def normalize_date(date_str):
+            if not date_str or not isinstance(date_str, str):
+                return date_str
+            date_str = str(date_str).strip()
+            for fmt in ("%Y/%m/%d", "%Y/%m/%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            return date_str
+
+        if "棚卸日付" in df.columns:
+            df["棚卸日付"] = df["棚卸日付"].apply(normalize_date)
+
         if preview:
             return {"code": 200, "msg": get_message("preview_mode", lang), "data": df}
 
@@ -127,7 +142,7 @@ async def upload_inventory_items_api(
         for task_id in task_ids:
             await update_inventory_task(session, task_id, {"status": "confirmed"}, user_id)
 
-        return {"code": 200, "msg": get_message("snapshot_upload_success", lang), "data": result}
+        return {"code": 200, "msg": get_message("inventory_upload_success", lang), "data": result}
     except Exception as e:
         app_logger.error(f"Error uploading inventory items: {str(e)}")
         return {"code": 500, "msg": str(e)}
@@ -187,6 +202,16 @@ async def upload_snapshot(
             session, org_id, inventory_date, df, user_id
         )
         if result.get("has_unmatched"):
+            if result.get("error_type") == "duplicate_item":
+                duplicate_errors = result.get("duplicate_errors", [])
+                error_details = []
+                for err in duplicate_errors:
+                    store_code = err.get("store_code", "")
+                    item_ids = err.get("item_ids", [])
+                    error_details.append(f"{store_code}: {', '.join(item_ids)}")
+                error_msg = "; ".join(error_details)
+                return {"code": 400, "msg": get_message("duplicate_item_in_store", lang, details=error_msg),
+                        "data": result}
             return {"code": 400, "msg": get_message("data_validation_failed", lang), "data": result}
         return {"code": 200, "msg": get_message("snapshot_upload_success", lang), "data": result}
     except Exception as e:

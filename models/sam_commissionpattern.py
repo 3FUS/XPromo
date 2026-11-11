@@ -35,7 +35,7 @@ class CommissionPattern(Base):
 class CommissionPatternCategory(Base):
     __tablename__ = 'commission_pattern_category'
     category_code = Column(String(30), primary_key=True, comment="销售区域CODE")
-    category_name = Column(String(120), nullable=False, comment="销售区域名称")
+    category_name = Column(NVARCHAR(120), nullable=False, comment="销售区域名称")
     status = Column(String(30), default='active', comment="状态：active-启用, inactive-禁用")
     sort_order = Column(Integer, default=0, comment="排序顺序")
     create_time = Column(DATETIME)
@@ -44,7 +44,7 @@ class CommissionPatternCategory(Base):
 class CommissionPatternBrand(Base):
     __tablename__ = 'commission_pattern_brand'
     brand_code = Column(String(30), primary_key=True, comment="品牌CODE")
-    brand_name= Column(String(120), nullable=False, comment="品牌名称")
+    brand_name= Column(NVARCHAR(120), nullable=False, comment="品牌名称")
     status = Column(String(30), default='active', comment="状态：active-启用, inactive-禁用")
     sort_order = Column(Integer, default=0, comment="排序顺序")
     create_time = Column(DATETIME)

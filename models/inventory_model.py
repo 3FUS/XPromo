@@ -19,7 +19,7 @@ class InventoryTask(Base):
     org_id = Column(String(30), nullable=False, comment="组织ID")
     store_code = Column(String(20), nullable=False, comment="店铺代码")
     inventory_date = Column(Date, comment="盘点日期")
-    inventory_method = Column(String(20), nullable=False, default="self",
+    inventory_method = Column(NVARCHAR(30), nullable=False, default="self",
                               comment="盘点方式: self=店舗棚卸, external=外部棚卸会社")
     inventory_type = Column(String(20), nullable=False, default="full")
     status = Column(String(20), nullable=False, default="pending",

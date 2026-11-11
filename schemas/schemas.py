@@ -193,6 +193,7 @@ class SysUserSubmit(BaseModel):
     user_name: str
     user_password: Optional[str] = Field(None)
     user_status: str = "active"
+    system_code: str="XPRMO"
     role_code: Optional[List[SysUserRole]]
     user_email: Optional[str] = Field(None)
     create_time: Optional[datetime] = Field(None)
@@ -207,6 +208,7 @@ class SysRoleSubmit(BaseModel):
     role_code: str
     role_description: str
     role_status: str = "active"
+    system_code: str="XPRMO"
     data: Optional[List[Dict]] = Field(None)
     org_data: Optional[List[str]] = Field(None)
     create_time: Optional[datetime] = Field(None)

@@ -6,7 +6,7 @@ labels:
     jp: "タスクID"
     zh_tw: "任務ID"
   batch_no:
-    en: "Batch No"
+    en: "Task No"
     zh: "盘点任务号"
     jp: "バッチ番号"
     zh_tw: "任务號"

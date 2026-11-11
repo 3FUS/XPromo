@@ -439,6 +439,7 @@ class SysRole(Base):
     role_code = Column(String(60), primary_key=True)
     role_description = Column(String(120))
     role_status = Column(String(30))
+    system_code=Column(String(30))
     create_time = Column(DATETIME)
     create_user = Column(String(30))
     update_time = Column(DATETIME)
@@ -455,6 +456,17 @@ class SysUserRole(Base):
     update_user = Column(String(30))
 
 
+class SysUserRoleINV(Base):
+    __tablename__ = 'sys_user_role_inv'
+    user_code = Column(String(60), primary_key=True)
+    role_code = Column(String(60), primary_key=True)
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
+
+
 class SysMenu(Base):
     __tablename__ = 'sys_menu'
     parent_code = Column(String(30))
@@ -462,6 +474,8 @@ class SysMenu(Base):
     menu_name = Column(String(30))
     menu_url = Column(String(255))
     menu_icon = Column(String(255))
+    system_code=Column(String(30))
+    sort_order = Column(Integer, default=0)
 
 
 class SysMenuPermission(Base):
@@ -476,6 +490,16 @@ class SysMenuPermission(Base):
 
 class SysRoleMenuPermission(Base):
     __tablename__ = 'sys_role_menu_permission'
+    role_code = Column(String(60), primary_key=True)
+    menu_code = Column(String(30), primary_key=True)
+    permission_type = Column(String(50), primary_key=True)
+    create_time = Column(DATETIME)
+    create_user = Column(String(30))
+    update_time = Column(DATETIME)
+    update_user = Column(String(30))
+
+class SysRoleMenuPermissionINV(Base):
+    __tablename__ = 'sys_role_menu_permission_inv'
     role_code = Column(String(60), primary_key=True)
     menu_code = Column(String(30), primary_key=True)
     permission_type = Column(String(50), primary_key=True)

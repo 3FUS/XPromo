@@ -1445,19 +1445,24 @@ def _build_deal_trig_data_by_attribute(data_containers, promotion_id, subclass_i
         if not attribute.get('attribute_value'):
             continue
 
-        deal_trig = {
-            **promotion_mapping["PRC_DEAL_TRIG"],
-            "deal_id": promotion_id,
-            "deal_trigger": f"{attribute['attribute_code']}:{attribute['attribute_value']}"
-        }
+        # 用逗号分割 attribute_value，处理多个值的情况（如 "Silver,Black"）
+        attribute_values = [v.strip() for v in attribute['attribute_value'].split(',') if v.strip()]
 
-        if _is_copy_subclass(subclass_id):
-            for set_id_info in set_ids:
-                deal_trig_copy = deal_trig.copy()
-                deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
-                data_containers['PRC_DEAL_TRIG'].append(deal_trig_copy)
-        else:
-            data_containers['PRC_DEAL_TRIG'].append(deal_trig)
+        # 为每个值创建独立的 deal_trig 记录
+        for attr_value in attribute_values:
+            deal_trig = {
+                **promotion_mapping["PRC_DEAL_TRIG"],
+                "deal_id": promotion_id,
+                "deal_trigger": f"{attribute['attribute_code']}:{attr_value}"
+            }
+
+            if _is_copy_subclass(subclass_id):
+                for set_id_info in set_ids:
+                    deal_trig_copy = deal_trig.copy()
+                    deal_trig_copy["deal_id"] = f"{promotion_id}:{set_id_info['set_id']}"
+                    data_containers['PRC_DEAL_TRIG'].append(deal_trig_copy)
+            else:
+                data_containers['PRC_DEAL_TRIG'].append(deal_trig)
 
 
 def _build_deal_trig_data(data_containers, promotion_id, subclass_id, set_ids,

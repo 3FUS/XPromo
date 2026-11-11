@@ -24,6 +24,7 @@ def init_system_data(session: Session):
                 role_code="admin",
                 role_description="Administrator Role",
                 role_status="active",
+                system_code="XPRMO",
                 create_time=datetime.now(),
                 create_user="init_system"
             )
@@ -121,17 +122,39 @@ def init_menu_data(session: Session):
     menus = [
         # 顶级菜单
         {"parent_code": None, "menu_code": "Promotion", "menu_name": "Promotion", "menu_url": "/promotion",
-         "menu_icon": "promotion"},
+         "menu_icon": "promotion","system_code": "XPRMO"},
         {"parent_code": None, "menu_code": "Item", "menu_name": "Item", "menu_url": "/segment/item",
-         "menu_icon": "item"},
+         "menu_icon": "item","system_code": "XPRMO"},
         {"parent_code": None, "menu_code": "Location", "menu_name": "Location", "menu_url": "/segment/location",
-         "menu_icon": "location"},
+         "menu_icon": "location","system_code": "XPRMO"},
         {"parent_code": None, "menu_code": "Customer", "menu_name": "Customer", "menu_url": "/segment/customer",
-         "menu_icon": "customer"},
-        {"parent_code": None, "menu_code": "User", "menu_name": "User", "menu_url": "/user", "menu_icon": "user"},
-        {"parent_code": None, "menu_code": "Role", "menu_name": "Role", "menu_url": "/role", "menu_icon": "role"},
+         "menu_icon": "customer","system_code": "XPRMO"},
+        {"parent_code": None, "menu_code": "User", "menu_name": "User", "menu_url": "/user", "menu_icon": "user","system_code": "XPRMO"},
+        {"parent_code": None, "menu_code": "Role", "menu_name": "Role", "menu_url": "/role", "menu_icon": "role","system_code": "XPRMO"},
         {"parent_code": None, "menu_code": "configuration", "menu_name": "Configuration", "menu_url": "/config",
-         "menu_icon": "config"},
+         "menu_icon": "config","system_code": "XPRMO"},
+
+        # ===== INV 顶级父菜单（用户 SQL 中未显式给出，这里补齐避免子菜单挂空父） =====
+        {"parent_code": None, "menu_code": "Stock Take", "menu_name": "Stock Take", "menu_url": None,
+         "menu_icon": None, "system_code": "INV", "sort_order": 210},
+        {"parent_code": None, "menu_code": "Permission", "menu_name": "Permission", "menu_url": None,
+         "menu_icon": None, "system_code": "INV", "sort_order": 230},
+
+        # ===== INV 子菜单（严格按用户提供的 INSERT 脚本） =====
+        {"parent_code": "Stock Take", "menu_code": "Stock_Task",       "menu_name": "Stock Task",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 211},
+        {"parent_code": "Stock Take", "menu_code": "Stock_List",       "menu_name": "Stock List",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 212},
+        {"parent_code": "Stock Take", "menu_code": "Stock_Difference", "menu_name": "Stock Difference",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 213},
+        {"parent_code": "Stock Take", "menu_code": "Inventory_Import", "menu_name": "Inventory Import",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 214},
+        {"parent_code": "Stock Take", "menu_code": "Upload_Inventory", "menu_name": "Upload Inventory",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 215},
+        {"parent_code": "Permission", "menu_code": "User",             "menu_name": "User",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 231},
+        {"parent_code": "Permission", "menu_code": "Role",             "menu_name": "Role",
+         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 232},
     ]
 
     # 添加菜单
@@ -143,7 +166,8 @@ def init_menu_data(session: Session):
                 menu_code=menu_data["menu_code"],
                 menu_name=menu_data["menu_name"],
                 menu_url=menu_data["menu_url"],
-                menu_icon=menu_data["menu_icon"]
+                menu_icon=menu_data["menu_icon"],
+                system_code=menu_data["system_code"]
             )
             session.add(menu)
 
@@ -158,8 +182,29 @@ def init_menu_data(session: Session):
         "configuration": ["Edit", "View"]
     }
 
+    inv_permission_mapping = {
+        "Inventory_Import": ["Import"],
+        "Stock_Difference": ["Confirm", "Download", "Reject", "View"],
+        "Stock_List":       ["Cancel", "View"],
+        "Stock_Task":       ["Add", "Cancel", "Confirm", "Submit", "View", "View Differences"],
+        "Upload_Inventory": ["Upload"],
+    }
+
     # 为每个菜单创建对应的权限类型
-    for menu_code, permissions in permission_mapping.items():
+    combined_permission_mapping = {}
+    for code, perms in {**permission_mapping, **inv_permission_mapping}.items():
+        combined_permission_mapping.setdefault(code, [])
+        for p in perms:
+            if p not in combined_permission_mapping[code]:
+                combined_permission_mapping[code].append(p)
+
+    # 为每个菜单创建对应的权限类型
+    for menu_code, permissions in combined_permission_mapping.items():
+        # 菜单必须已存在，避免权限表产生脏数据
+        menu_exists = session.query(SysMenu).filter(SysMenu.menu_code == menu_code).first()
+        if not menu_exists:
+            continue
+
         for perm_type in permissions:
             existing_perm = session.query(SysMenuPermission).filter(
                 SysMenuPermission.menu_code == menu_code,
@@ -174,7 +219,6 @@ def init_menu_data(session: Session):
                     create_user="system"
                 )
                 session.add(menu_perm)
-
 
 def assign_admin_permissions(session: Session):
     """为admin角色分配所有权限"""

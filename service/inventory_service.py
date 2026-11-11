@@ -1565,10 +1565,10 @@ async def delete_inventory_item(
 
 
 def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc", store_col: str = "store_code",
-                         part_number_col: str = None) -> \
+                         part_number_col: str = None, date_col: str = None) -> \
         Dict[str, Any]:
     total_start = time.time()
-    app_logger.info(f"[validate_upload_data] 开始校验, 数据总行数={len(df)}, upc_col={upc_col}, store_col={store_col}")
+    app_logger.info(f"[validate_upload_data] 开始校验, 数据总行数={len(df)}, upc_col={upc_col}, store_col={store_col}, date_col={date_col}")
 
     upc_list = df[upc_col].dropna().unique().tolist() if upc_col and upc_col in df.columns else []
     upc_list = [str(u).strip() for u in upc_list if str(u).strip()]
@@ -1577,6 +1577,12 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
     store_list = df[store_col].dropna().unique().tolist()
     store_list = [str(s).strip() for s in store_list if str(s).strip()]
     app_logger.info(f"[validate_upload_data] 去重后门店数量={len(store_list)}")
+
+    date_list = []
+    if date_col and date_col in df.columns:
+        date_list = df[date_col].dropna().unique().tolist()
+        date_list = [str(d).strip() for d in date_list if str(d).strip()]
+        app_logger.info(f"[validate_upload_data] 去重后日期数量={len(date_list)}")
 
     upc_to_item = {}
     item_id_set = set()
@@ -1631,6 +1637,25 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
             f"[validate_upload_data] 价格映射: 查询{len(item_id_set)}个item_id, "
             f"命中{len(item_id_to_price)}个, 耗时{price_elapsed:.3f}s")
 
+    item_id_to_upc = {}
+    if item_id_set:
+        upc_lookup_start = time.time()
+        item_upc_refs = session.query(
+            ItmItemCrossReference.item_id,
+            ItmItemCrossReference.manufacturer_upc
+        ).filter(
+            ItmItemCrossReference.item_id.in_(list(item_id_set))
+        ).all()
+        for ref in item_upc_refs:
+            uid = str(ref.item_id).strip()
+            upc_val = str(ref.manufacturer_upc).strip()
+            if uid and upc_val:
+                item_id_to_upc[uid] = upc_val
+        upc_lookup_elapsed = time.time() - upc_lookup_start
+        app_logger.info(
+            f"[validate_upload_data] item_id→UPC反向映射: 查询{len(item_id_set)}个item_id, "
+            f"命中{len(item_id_to_upc)}个, 耗时{upc_lookup_elapsed:.3f}s")
+
     valid_stores = set()
     if store_list:
         store_start = time.time()
@@ -1649,6 +1674,40 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
             f"[validate_upload_data] 门店校验: 查询{len(store_list)}个(数字{len(digit_stores)}个), "
             f"命中{len(valid_stores)}个, 未命中{len(store_list) - len(valid_stores)}个, 耗时{store_elapsed:.3f}s")
 
+    blocked_tasks = []
+    if store_list and date_list:
+        task_check_start = time.time()
+        parsed_dates = []
+        for d in date_list:
+            for fmt in ("%Y/%m/%d", "%Y/%m/%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    parsed_dates.append(datetime.strptime(d, fmt).date())
+                    break
+                except ValueError:
+                    continue
+            else:
+                app_logger.warning(f"[validate_upload_data] 无法解析日期: {d}")
+
+        if parsed_dates:
+            existing_tasks = session.query(InventoryTask).filter(
+                InventoryTask.org_id == org_id,
+                InventoryTask.store_code.in_(store_list),
+                InventoryTask.inventory_date.in_(parsed_dates),
+                InventoryTask.status.in_(["confirmed", "completed"])
+            ).all()
+
+            for task in existing_tasks:
+                blocked_tasks.append({
+                    "store_code": task.store_code,
+                    "inventory_date": str(task.inventory_date),
+                    "task_id": task.task_id,
+                    "status": task.status
+                })
+
+            app_logger.info(
+                f"[validate_upload_data] Task状态检查: 查询门店={len(store_list)}, 日期={len(parsed_dates)}, "
+                f"命中blocked={len(blocked_tasks)}, 耗时{time.time() - task_check_start:.3f}s")
+
     data = []
     has_error = False
     upc_col_idx = df.columns.get_loc(upc_col) if upc_col and upc_col in df.columns else None
@@ -1664,6 +1723,7 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
         errors = []
         item_id = ""
         price = 0.0
+        found_upc = ""
 
         if part_number_col and part_number:
             item_id = part_number_to_item.get(part_number, "")
@@ -1671,12 +1731,17 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
                 errors.append(f"Material-Grid不存在: {part_number}")
             else:
                 price = item_id_to_price.get(item_id, 0.0)
+                found_found_upc = item_id_to_upc.get(item_id, "")
         elif upc:
             item_id = upc_to_item.get(upc, "")
             if not item_id:
                 errors.append(f"UPC不存在: {upc}")
             else:
                 price = item_id_to_price.get(item_id, 0.0)
+                found_upc = upc
+        else:
+            errors.append(f"UPC为空")
+
         if store and store not in valid_stores:
             errors.append(f"门店不存在: {store}")
 
@@ -1684,7 +1749,7 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
         if error_flag:
             has_error = True
 
-        row_dict = {"item_id": item_id, "price": price, "error_flag": error_flag}
+        row_dict = {"item_id": item_id, "price": price, "upc": found_upc, "error_flag": error_flag}
         if error_flag:
             row_dict["error_msg"] = "; ".join(errors)
         for i, col in enumerate(columns):
@@ -1702,8 +1767,8 @@ def validate_upload_data(session: Session, df, org_id: str, upc_col: str = "upc"
     return {
         "valid": valid,
         "data": data,
+        "blocked_tasks": blocked_tasks,
     }
-
 
 async def upload_inventory_items(
         session: Session,
@@ -1730,10 +1795,25 @@ async def upload_inventory_items(
             f"[upload_inventory_items] 开始处理: org_id={org_id}, 总行数={len(df)}")
 
         step_start = time.time()
-        validation = validate_upload_data(session, df, org_id, upc_col="upc", store_col="store_code")
+        validation = validate_upload_data(session, df, org_id, upc_col="upc", store_col="store_code", date_col="inventory_date")
         data = validation["data"]
+        blocked_tasks = validation.get("blocked_tasks", [])
         app_logger.info(f"[upload_inventory_items] 数据校验完成, 耗时{time.time() - step_start:.3f}s")
         app_logger.info(f"[upload_inventory_items] 数据预览: {data[:10]}")
+
+        if blocked_tasks:
+            session.rollback()
+            error_details = [f"{t['store_code']}({t['inventory_date']})" for t in blocked_tasks]
+            error_msg = "; ".join(error_details)
+            app_logger.warning(f"[upload_inventory_items] 发现已确认/完成的任务, 拒绝上传: {error_msg}")
+            return {
+                "tasks": [],
+                "has_unmatched": True,
+                "error_type": "task_confirmed_completed",
+                "error_data": blocked_tasks,
+                "error_message": error_msg,
+            }
+
         if not validation["valid"]:
             error_rows = [d for d in data if d["error_flag"]]
             app_logger.info(f"[upload_inventory_items] 校验失败, 错误行数={len(error_rows)}")
@@ -1747,11 +1827,18 @@ async def upload_inventory_items(
         now = datetime.now()
 
         for row_dict in data:
-            row_dict["_inv_date"] = (
-                datetime.strptime(str(row_dict["inventory_date"]).strip(), "%Y-%m-%d").date()
-                if isinstance(row_dict["inventory_date"], str)
-                else row_dict["inventory_date"]
-            )
+            date_str = str(row_dict["inventory_date"]).strip()
+            if isinstance(row_dict["inventory_date"], str):
+                for fmt in ("%Y/%m/%d", "%Y/%m/%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        row_dict["_inv_date"] = datetime.strptime(date_str, fmt).date()
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    row_dict["_inv_date"] = row_dict["inventory_date"]
+            else:
+                row_dict["_inv_date"] = row_dict["inventory_date"]
 
         grouped_map = {}
         for row_dict in data:
@@ -1802,7 +1889,7 @@ async def upload_inventory_items(
         new_items = []
         new_task_count = 0
         new_order_count = 0
-        skipped_order_count = 0
+        cleared_order_count = 0
 
         for (store_code, inv_date, order_id), rows in grouped_map.items():
             task_key = (store_code, inv_date)
@@ -1834,7 +1921,15 @@ async def upload_inventory_items(
             order_no = f"INV{date_str}{store_code}{order_id}"
 
             if order_no in existing_orders:
-                skipped_order_count += 1
+                session.query(InventoryItem).filter(
+                    InventoryItem.order_no == order_no
+                ).delete()
+                session.query(InventoryOrder).filter(
+                    InventoryOrder.order_no == order_no
+                ).update({"task_id": task_id})
+                cleared_order_count += 1
+                app_logger.info(
+                    f"[upload_inventory_items] 清空已有Order明细并更新task_id: order_no={order_no}, task_id={task_id}")
             else:
                 zone_code = rows[0]["zone_code"]
                 new_order = InventoryOrder(
@@ -1879,7 +1974,7 @@ async def upload_inventory_items(
 
         app_logger.info(
             f"[upload_inventory_items] 数据组装完成: 新建Task={new_task_count}, "
-            f"新建Order={new_order_count}, 跳过已有Order={skipped_order_count}, "
+            f"新建Order={new_order_count}, 清空已有Order={cleared_order_count}, "
             f"待写入Item={len(new_items)}, 耗时{time.time() - step_start:.3f}s")
 
         step_start = time.time()
@@ -1895,12 +1990,14 @@ async def upload_inventory_items(
         for row_dict in data:
             if row_dict["error_flag"]:
                 continue
+            if not row_dict.get("item_id"):
+                continue
             store_code = str(row_dict["store_code"]).strip()
             inv_date = str(row_dict["_inv_date"])
             key = f"{store_code}_{inv_date}"
             if key not in store_summary:
-                store_summary[key] = {"store_code": store_code, "inventory_date": inv_date, "item_count": 0}
-            store_summary[key]["item_count"] += 1
+                store_summary[key] = {"store_code": store_code, "inventory_date": inv_date, "detail_count": 0}
+            store_summary[key]["detail_count"] += 1
 
         results = list(store_summary.values())
 
@@ -1925,7 +2022,6 @@ async def upload_inventory_items(
         session.rollback()
         app_logger.error(f"Error uploading inventory items: {str(e)}")
         raise
-
 
 async def upload_snapshot_details(
         session: Session,
@@ -1960,11 +2056,27 @@ async def upload_snapshot_details(
         app_logger.info(
             f"[upload_snapshot] 开始处理: org_id={org_id}, inventory_date={inventory_date}, 总行数={len(df)}")
 
+        df["_inventory_date"] = str(inventory_date)
+
         step_start = time.time()
         validation = validate_upload_data(session, df, org_id, upc_col="", store_col="store_code",
-                                          part_number_col='PART_NUMBER')
+                                          part_number_col='PART_NUMBER', date_col='_inventory_date')
         data = validation["data"]
+        blocked_tasks = validation.get("blocked_tasks", [])
         app_logger.info(f"[upload_snapshot] 数据校验完成, 耗时{time.time() - step_start:.3f}s")
+
+        if blocked_tasks:
+            session.rollback()
+            error_details = [f"{t['store_code']}({t['inventory_date']})" for t in blocked_tasks]
+            error_msg = "; ".join(error_details)
+            app_logger.warning(f"[upload_snapshot] 发现已确认/完成的任务, 拒绝上传: {error_msg}")
+            return {
+                "tasks": [],
+                "has_unmatched": True,
+                "error_type": "task_confirmed_completed",
+                "error_data": blocked_tasks,
+                "error_message": error_msg,
+            }
 
         if not validation["valid"]:
             error_rows = [d for d in data if d["error_flag"]]
@@ -1993,6 +2105,39 @@ async def upload_snapshot_details(
         app_logger.info(
             f"[upload_snapshot] 数据分组完成, 门店数={len(store_codes)}, "
             f"有效行数={sum(len(v) for v in grouped.values())}, 耗时{time.time() - step_start:.3f}s")
+
+        step_start = time.time()
+        duplicate_errors = []
+        for store_code, rows in grouped.items():
+            item_id_counts = {}
+            for row_dict in rows:
+                item_id = row_dict.get("item_id")
+                if item_id:
+                    if item_id in item_id_counts:
+                        item_id_counts[item_id] += 1
+                    else:
+                        item_id_counts[item_id] = 1
+
+            duplicate_items = [item for item, count in item_id_counts.items() if count > 1]
+            if duplicate_items:
+                duplicate_errors.append({
+                    "store_code": store_code,
+                    "item_ids": duplicate_items
+                })
+
+        if duplicate_errors:
+            error_messages = []
+            for err in duplicate_errors:
+                error_messages.append(f"store_code={err['store_code']}: item_ids={err['item_ids']}")
+            app_logger.warning(f"[upload_snapshot] 检测到重复item_id: {error_messages}")
+            return {
+                "tasks": [],
+                "has_unmatched": True,
+                "error_type": "duplicate_item",
+                "duplicate_errors": duplicate_errors,
+            }
+
+        app_logger.info(f"[upload_snapshot] 重复检查通过, 耗时{time.time() - step_start:.3f}s")
 
         step_start = time.time()
         existing_tasks = session.query(InventoryTask).filter(
@@ -2047,7 +2192,7 @@ async def upload_snapshot_details(
                     app_logger.warning(f"[upload_snapshot] 门店={store_code}, 跳过无item_id行")
                     continue
 
-                # upc = str(row_dict["upc"]).strip()
+                upc = str(row_dict.get("upc", "")).strip()
                 price = row_dict["price"]
                 frozen_qty_raw = row_dict["frozen_qty"]
                 frozen_qty = int(float(str(frozen_qty_raw))) if str(frozen_qty_raw).strip() else 0
@@ -2058,7 +2203,7 @@ async def upload_snapshot_details(
                     task_id=task_id,
                     inventory_date=inventory_date,
                     item_id=item_id,
-                    # upc=upc,
+                    upc=upc,
                     price=price,
                     material=str(row_dict.get("material", "")).strip(),
                     grid=str(row_dict.get("grid", "")).strip(),
