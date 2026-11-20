@@ -135,26 +135,26 @@ def init_menu_data(session: Session):
          "menu_icon": "config","system_code": "XPRMO"},
 
         # ===== INV 顶级父菜单（用户 SQL 中未显式给出，这里补齐避免子菜单挂空父） =====
-        {"parent_code": None, "menu_code": "Stock Take", "menu_name": "Stock Take", "menu_url": None,
-         "menu_icon": None, "system_code": "INV", "sort_order": 210},
-        {"parent_code": None, "menu_code": "Permission", "menu_name": "Permission", "menu_url": None,
-         "menu_icon": None, "system_code": "INV", "sort_order": 230},
-
-        # ===== INV 子菜单（严格按用户提供的 INSERT 脚本） =====
-        {"parent_code": "Stock Take", "menu_code": "Stock_Task",       "menu_name": "Stock Task",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 211},
-        {"parent_code": "Stock Take", "menu_code": "Stock_List",       "menu_name": "Stock List",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 212},
-        {"parent_code": "Stock Take", "menu_code": "Stock_Difference", "menu_name": "Stock Difference",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 213},
-        {"parent_code": "Stock Take", "menu_code": "Inventory_Import", "menu_name": "Inventory Import",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 214},
-        {"parent_code": "Stock Take", "menu_code": "Upload_Inventory", "menu_name": "Upload Inventory",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 215},
-        {"parent_code": "Permission", "menu_code": "User",             "menu_name": "User",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 231},
-        {"parent_code": "Permission", "menu_code": "Role",             "menu_name": "Role",
-         "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 232},
+        # {"parent_code": None, "menu_code": "Stock Take", "menu_name": "Stock Take", "menu_url": None,
+        #  "menu_icon": None, "system_code": "INV", "sort_order": 210},
+        # {"parent_code": None, "menu_code": "Permission", "menu_name": "Permission", "menu_url": None,
+        #  "menu_icon": None, "system_code": "INV", "sort_order": 230},
+        #
+        # # ===== INV 子菜单（严格按用户提供的 INSERT 脚本） =====
+        # {"parent_code": "Stock Take", "menu_code": "Stock_Task",       "menu_name": "Stock Task",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 211},
+        # {"parent_code": "Stock Take", "menu_code": "Stock_List",       "menu_name": "Stock List",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 212},
+        # {"parent_code": "Stock Take", "menu_code": "Stock_Difference", "menu_name": "Stock Difference",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 213},
+        # {"parent_code": "Stock Take", "menu_code": "Inventory_Import", "menu_name": "Inventory Import",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 214},
+        # {"parent_code": "Stock Take", "menu_code": "Upload_Inventory", "menu_name": "Upload Inventory",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 215},
+        # {"parent_code": "Permission", "menu_code": "User",             "menu_name": "User",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 231},
+        # {"parent_code": "Permission", "menu_code": "Role",             "menu_name": "Role",
+        #  "menu_url": None, "menu_icon": None, "system_code": "INV", "sort_order": 232},
     ]
 
     # 添加菜单

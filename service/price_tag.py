@@ -289,9 +289,34 @@ def generate_and_upload_price_tags(db, org_id, config_params):
             df_regular['PRICE TYPE'] = '01'
             df_regular['REMARKS'] = ''
 
-        # 合并所有数据
-        dfs = [df for df in [df_new, df_percent, df_regular] if not df.empty]
-        if not dfs:
+        # # 合并所有数据
+        # dfs = [df for df in [df_new, df_percent, df_regular] if not df.empty]
+        # if not dfs:
+        #     app_logger.warning("No price tag data found")
+        #     return {
+        #         'success': False,
+        #         'message': 'No price tag data found',
+        #         'file_path': None,
+        #         'uploaded': False
+        #     }
+        #
+        # df = pd.concat(dfs, ignore_index=True)
+        #
+        # app_logger.info(f"Retrieved ORG:{org_id} Count of {len(df)} price tag records")
+        # # 转换为 DataFrame
+        # # df = pd.DataFrame(all_price_tags)
+        # initial_count = len(df)
+        # df = df.drop_duplicates(subset=['promotion_id', 'org_id', 'material', 'grid', 'SKU', 'EAN', 'PRICE'])
+        # deduplicated_count = len(df)
+        #
+        # if initial_count != deduplicated_count:
+        #     app_logger.info(f"Removed {initial_count - deduplicated_count} duplicate records")
+        #
+        # app_logger.info(f"Total {deduplicated_count} price tag records after deduplication")
+
+
+        # 合并所有数据：促销数据(P1)去重，常规数据(01 / df_regular)不去重直接拼接
+        if df_new.empty and df_percent.empty and df_regular.empty:
             app_logger.warning("No price tag data found")
             return {
                 'success': False,
@@ -300,18 +325,22 @@ def generate_and_upload_price_tags(db, org_id, config_params):
                 'uploaded': False
             }
 
-        df = pd.concat(dfs, ignore_index=True)
+        promo_frames = [df for df in [df_new, df_percent] if not df.empty]
+        if promo_frames:
+            df_promo = pd.concat(promo_frames, ignore_index=True)
+            initial_count = len(df_promo)
+            df_promo = df_promo.drop_duplicates(
+                subset=['promotion_id', 'org_id', 'material', 'grid', 'SKU', 'EAN', 'PRICE'])
+            removed_count = initial_count - len(df_promo)
+            if removed_count:
+                app_logger.info(f"Removed {removed_count} duplicate records")
+            df = pd.concat([df_promo, df_regular], ignore_index=True) \
+                if not df_regular.empty else df_promo
+        else:
+            df = df_regular.copy()
 
         app_logger.info(f"Retrieved ORG:{org_id} Count of {len(df)} price tag records")
-        # 转换为 DataFrame
-        # df = pd.DataFrame(all_price_tags)
-        initial_count = len(df)
-        df = df.drop_duplicates(subset=['promotion_id', 'org_id', 'material', 'grid', 'SKU', 'EAN', 'PRICE'])
         deduplicated_count = len(df)
-
-        if initial_count != deduplicated_count:
-            app_logger.info(f"Removed {initial_count - deduplicated_count} duplicate records")
-
         app_logger.info(f"Total {deduplicated_count} price tag records after deduplication")
 
         # 添加缺失的字段

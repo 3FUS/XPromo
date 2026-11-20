@@ -207,10 +207,10 @@ try:
     CustomBase.metadata.create_all(engine)
     from models.sam_commissionpattern import Base as CommissionPatternBase
     CommissionPatternBase.metadata.create_all(engine)
-    from models.inventory_model import Base as InventoryBase
-    InventoryBase.metadata.create_all(engine)
+    # from models.inventory_model import Base as InventoryBase
+    # InventoryBase.metadata.create_all(engine)
     app_logger.info("Database tables created/verified successfully.")
-    init_default_data()
+    # init_default_data()
 except Exception as e:
     app_logger.error(f"Failed to create/verify database tables: {str(e)}")
     app_logger.exception("Detailed traceback for table creation error:")
